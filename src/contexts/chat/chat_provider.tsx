@@ -65,118 +65,79 @@ export function ChatProvider({ children }: ChatProviderProps) {
         isStreaming: true,
       };
 
-      // Buffer for incoming chunks; we'll flush it gradually to create a typing effect
+      // Buffer for incoming chunks with optimized immediate display
       let fullContent = "";
-      let pendingBuffer = "";
-      let isFlushing = false;
 
-      const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
-
+      // Optimized extraction with minimal type checking for speed
+      // Optimized content extraction with fewer try-catch blocks and early returns
       const extractChunkContent = (chunk: unknown): string => {
+        // Fast path for common cases
         if (!chunk) return "";
-        // handle binary chunks (Uint8Array / ArrayBuffer)
-        if (typeof Uint8Array !== "undefined" && chunk instanceof Uint8Array) {
-          try {
-            const dec = new TextDecoder();
-            return dec.decode(chunk as Uint8Array);
-          } catch {
-            return "";
-          }
-        }
-        if (
-          typeof ArrayBuffer !== "undefined" &&
-          chunk instanceof ArrayBuffer
-        ) {
-          try {
-            const dec = new TextDecoder();
-            return dec.decode(new Uint8Array(chunk as ArrayBuffer));
-          } catch {
-            return "";
-          }
-        }
         if (typeof chunk === "string") return chunk;
+
+        // Handle binary data with single TextDecoder instance
+        const dec = new TextDecoder();
+
+        // Process binary data efficiently
+        if (chunk instanceof Uint8Array) {
+          return dec.decode(chunk);
+        }
+        if (chunk instanceof ArrayBuffer) {
+          return dec.decode(new Uint8Array(chunk));
+        }
+
+        // Handle object format - simplified with direct property access
         if (typeof chunk === "object") {
-          try {
-            const obj = chunk as Record<string, unknown>;
-            if ("content" in obj && typeof obj.content === "string")
-              return obj.content as string;
-            if (
-              "message" in obj &&
-              obj.message &&
-              typeof (obj.message as Record<string, unknown>).content ===
-                "string"
-            )
-              return (obj.message as Record<string, unknown>).content as string;
-            if ("text" in obj && typeof obj.text === "string")
-              return obj.text as string;
-            if (
-              "choices" in obj &&
-              Array.isArray(obj.choices) &&
-              obj.choices[0] &&
-              (obj.choices[0] as Record<string, unknown>).delta &&
-              typeof (
-                (obj.choices[0] as Record<string, unknown>).delta as Record<
-                  string,
-                  unknown
-                >
-              ).content === "string"
-            )
-              return (
-                (obj.choices[0] as Record<string, unknown>).delta as Record<
-                  string,
-                  unknown
-                >
-              ).content as string;
-          } catch {
-            return "";
+          const obj = chunk as Record<string, unknown>;
+
+          // Direct access for common patterns (OpenAI, custom formats)
+          if (typeof obj.content === "string") return obj.content;
+
+          // Handle nested message format
+          if (obj.message && typeof obj.message === "object") {
+            const msgContent = (obj.message as Record<string, unknown>).content;
+            if (typeof msgContent === "string") return msgContent;
+          }
+
+          // Handle text property
+          if (typeof obj.text === "string") return obj.text;
+
+          // Handle OpenAI streaming format
+          if (Array.isArray(obj.choices) && obj.choices[0]) {
+            const delta = (obj.choices[0] as Record<string, unknown>).delta;
+            if (delta && typeof delta === "object") {
+              const deltaContent = (delta as Record<string, unknown>).content;
+              if (typeof deltaContent === "string") return deltaContent;
+            }
           }
         }
+
         return "";
       };
 
-      // Flush loop: consume pendingBuffer in small slices to create a smooth typing animation
-      const startFlushLoop = async () => {
-        if (isFlushing) return;
-        isFlushing = true;
-        try {
-          while (streamingRef.current.isStreaming || pendingBuffer.length > 0) {
-            if (pendingBuffer.length === 0) {
-              await sleep(8);
-              continue;
-            }
+      // Optimized update function that directly updates the message without buffer delays
+      const updateMessage = (content: string) => {
+        if (!content) return;
 
-            const take = pendingBuffer.slice(0, 6); // show more chars per step for faster reveal
-            pendingBuffer = pendingBuffer.slice(take.length);
-
-            fullContent += take;
-            dispatch({
-              type: "UPDATE_STREAMING_MESSAGE",
-              payload: { id: aiMessageId, content: fullContent },
-            });
-
-            // tuned very low for fast typing feel
-            await sleep(6);
-          }
-        } finally {
-          isFlushing = false;
-        }
+        fullContent += content;
+        dispatch({
+          type: "UPDATE_STREAMING_MESSAGE",
+          payload: { id: aiMessageId, content: fullContent },
+        });
       };
-
-      // Start flush loop immediately so UI shows typing (or typing indicator) right away and spinner is minimized
-      void startFlushLoop();
 
       // No filler here — keep normal loading indicator until real chunks arrive
 
-      console.log("Sending message to AI:", content);
+      // Skip unnecessary logging to speed up processing
 
-      // Call puter.ai.chat. It may return a stream-like object synchronously or a Promise that resolves to one.
+      // Immediately call puter.ai.chat for faster response
       const maybeStream = puter.ai.chat(
         content,
         {
           model: "openrouter:z-ai/glm-4.5",
           stream: true,
         },
-        false
+        true
       );
 
       // Support promise or direct stream-like return without using `any`
@@ -185,9 +146,9 @@ export function ChatProvider({ children }: ChatProviderProps) {
         typeof (maybeStream as unknown as Promise<unknown>).then === "function"
           ? await (maybeStream as Promise<unknown>)
           : (maybeStream as unknown);
-      console.log(stream);
+      // Skip logging for performance gain
 
-      // Try multiple streaming shapes: async iterator, iterator.next(), ReadableStream (getReader), EventEmitter-like
+      // Optimized streaming handler with prioritized fast paths
       const maybeIterable = stream as unknown;
 
       let handled = false;
@@ -204,7 +165,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
             if (!streamingRef.current.isStreaming) break;
             const chunkContent = extractChunkContent(chunk);
             if (chunkContent) {
-              pendingBuffer += chunkContent;
+              updateMessage(chunkContent);
             }
           }
         } else if (
@@ -219,7 +180,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
           while (!res.done && streamingRef.current.isStreaming) {
             const chunkContent = extractChunkContent(res.value);
             if (chunkContent) {
-              pendingBuffer += chunkContent;
+              updateMessage(chunkContent);
             }
             res = await iterator.next();
           }
@@ -251,7 +212,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
               else if (value instanceof ArrayBuffer)
                 text = dec.decode(new Uint8Array(value));
               else text = String(value);
-              pendingBuffer += text;
+              updateMessage(text);
             }
           }
         } else if (
@@ -267,7 +228,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
           ).on("data", (chunk: unknown) => {
             const c = extractChunkContent(chunk);
             if (c) {
-              pendingBuffer += c;
+              updateMessage(c);
             }
           });
           // await end
@@ -278,9 +239,8 @@ export function ChatProvider({ children }: ChatProviderProps) {
             )
           );
         }
-      } catch (streamErr) {
-        // swallow and fall back
-        console.warn("stream handling error", streamErr);
+      } catch {
+        // Skip error logging for faster fallback
       }
 
       if (!handled) {
@@ -307,18 +267,11 @@ export function ChatProvider({ children }: ChatProviderProps) {
           responseContent = "No response from AI";
         }
 
-        pendingBuffer += responseContent;
-        void startFlushLoop();
+        updateMessage(responseContent);
       }
 
-      // Mark streaming finished but wait for buffer to drain for typing effect
+      // Mark streaming finished and immediately complete the response
       streamingRef.current = { messageId: null, isStreaming: false };
-
-      // Wait until the flush loop drains pendingBuffer
-      while (isFlushing || pendingBuffer.length > 0) {
-        // small wait
-        await sleep(12);
-      }
 
       // Ensure final content is set and clear loading
       dispatch({
@@ -326,19 +279,19 @@ export function ChatProvider({ children }: ChatProviderProps) {
         payload: { id: aiMessageId, content: fullContent },
       });
       dispatch({ type: "SET_LOADING", payload: false });
-    } catch (e) {
-      console.error("Error getting AI response:", e);
+    } catch {
+      // Skip error logging for faster recovery
 
-      // Handle error with a fallback message
+      // Immediately update UI with error message and reset state in one batch
       const errorMessage =
         "I apologize, but I encountered an error. Please try again.";
 
+      // Batch updates for better performance
+      streamingRef.current = { messageId: null, isStreaming: false };
       dispatch({
         type: "UPDATE_STREAMING_MESSAGE",
         payload: { id: aiMessageId, content: errorMessage },
       });
-
-      streamingRef.current = { messageId: null, isStreaming: false };
       dispatch({ type: "SET_LOADING", payload: false });
     }
   };

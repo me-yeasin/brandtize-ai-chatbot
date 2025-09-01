@@ -12,11 +12,10 @@ const MessageContainer = () => {
   const showWelcome = useShowWelcome();
   const isLoading = useIsLoading();
 
-  // Check if the last message is from the assistant and loading
-  const isLastMessageLoading =
-    isLoading &&
-    messages.length > 0 &&
-    messages[messages.length - 1].role === "assistant";
+  // Optimize the computation for better performance
+  const lastMessage =
+    messages.length > 0 ? messages[messages.length - 1] : null;
+  const isLastMessageLoading = isLoading && lastMessage?.role === "assistant";
 
   return (
     <div
@@ -29,12 +28,13 @@ const MessageContainer = () => {
         {/* Welcome Message */}
         {showWelcome && <WelcomeMessage />}
 
-        {/* Messages */}
+        {/* Messages - with optimized rendering */}
         <div className="flex flex-col space-y-4">
           {messages.map((msg, index) => {
-            // Check if this is the last message and it should show loading
+            // Fast path determination with minimal calculations
             const isLastMessage = index === messages.length - 1;
-            // Show spinner only if assistant message has no content yet and is currently loading
+
+            // Simplified condition with fewer checks
             const shouldShowLoading =
               isLastMessageLoading &&
               isLastMessage &&

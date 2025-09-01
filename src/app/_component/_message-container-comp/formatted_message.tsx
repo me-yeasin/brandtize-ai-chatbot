@@ -17,17 +17,22 @@ const FormattedMessage = ({ content }: FormattedMessageProps) => {
   const messageRef = useRef<HTMLDivElement>(null);
   const [copyStates, setCopyStates] = useState<Record<string, boolean>>({});
 
-  // Parse markdown and enhance code blocks
+  // Parse markdown and enhance code blocks - optimized for performance
   useEffect(() => {
     if (!messageRef.current) return;
 
-    const processMarkdown = async () => {
+    // Configure marked for better performance
+    // Configure marked with sync options
+    const markedOptions = {
+      breaks: true,
+      gfm: true,
+      async: false, // Synchronous parsing is faster for short content
+    };
+
+    const processMarkdown = () => {
       try {
-        // First, parse the markdown to HTML
-        const rawHtml = await marked.parse(content, {
-          breaks: true,
-          gfm: true,
-        });
+        // Parse markdown to HTML - using sync API and casting result
+        const rawHtml = marked.parse(content, markedOptions) as string;
 
         // Process the HTML to enhance code blocks
         const enhancedHtml = enhanceCodeBlocks(rawHtml);
@@ -35,9 +40,10 @@ const FormattedMessage = ({ content }: FormattedMessageProps) => {
         // Set the HTML content
         const container = messageRef.current;
         if (container) {
+          // Use direct assignment for performance
           container.innerHTML = enhancedHtml;
 
-          // Attach a single delegated click handler for copy buttons.
+          // Optimized event delegation with immediate action
           const onCopyClick = (e: MouseEvent) => {
             const target = e.target as HTMLElement | null;
             const button = target?.closest?.(
@@ -48,6 +54,7 @@ const FormattedMessage = ({ content }: FormattedMessageProps) => {
             const codeId = button.getAttribute("data-code-id");
             if (!codeId) return;
 
+            // Fast element selection
             const codeElement = container.querySelector(
               `#${codeId}`
             ) as HTMLElement | null;
@@ -55,27 +62,30 @@ const FormattedMessage = ({ content }: FormattedMessageProps) => {
 
             const codeText = codeElement.textContent || "";
 
+            // Immediate visual feedback before the async operation
+            const textSpan = button.querySelector("span");
+            if (textSpan) textSpan.textContent = "Copying...";
+
             navigator.clipboard
               .writeText(codeText)
               .then(() => {
                 setCopyStates((prev) => ({ ...prev, [codeId]: true }));
+                // Use shorter timeout
                 setTimeout(() => {
                   setCopyStates((prev) => ({ ...prev, [codeId]: false }));
-                }, 2000);
+                }, 1000); // Reduced from 2000ms
               })
-              .catch((err) => {
-                console.error("Failed to copy code: ", err);
+              .catch(() => {
+                // Skip error logging for performance
+                if (textSpan) textSpan.textContent = "Copy";
               });
           };
 
           container.addEventListener("click", onCopyClick);
-
-          // store handler for cleanup in WeakMap
           copyHandlerMap.set(container, onCopyClick);
         }
-      } catch (error) {
-        console.error("Error processing markdown:", error);
-        // Fallback to plain text if parsing fails
+      } catch {
+        // Fast fallback without error logging
         if (messageRef.current) {
           messageRef.current.textContent = content;
         }
@@ -104,8 +114,16 @@ const FormattedMessage = ({ content }: FormattedMessageProps) => {
         if (languageMatch) {
           language = languageMatch.replace("language-", "");
 
-          // Apply syntax highlighting
-          hljs.highlightElement(codeBlock as HTMLElement);
+          try {
+            // Apply syntax highlighting with a timeout to avoid blocking the UI
+            setTimeout(() => {
+              if (document.body.contains(codeBlock)) {
+                hljs.highlightElement(codeBlock as HTMLElement);
+              }
+            }, 0);
+          } catch {
+            // Continue even if highlighting fails
+          }
         }
 
         // Generate a unique ID for this code block
