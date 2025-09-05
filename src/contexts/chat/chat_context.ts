@@ -86,7 +86,10 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
 export interface ChatContextType {
   state: ChatState;
   dispatch: React.Dispatch<ChatAction>;
-  sendMessage: (content: string) => void;
+  sendMessage: (
+    content: string,
+    fileInfo?: { name: string; size: number; type: string }
+  ) => void;
   clearChat: () => void;
   setInputValue: (value: string) => void;
   setModel: (model: string) => void;

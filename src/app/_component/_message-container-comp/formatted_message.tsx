@@ -8,6 +8,11 @@ import "./markdown.css";
 
 interface FormattedMessageProps {
   content: string;
+  file?: {
+    name: string;
+    size: number;
+    type: string;
+  };
 }
 
 // Use a WeakMap to store delegated click handlers for each container node.

@@ -50,7 +50,10 @@ export function ChatProvider({ children }: ChatProviderProps) {
     };
   }, []);
 
-  const sendMessage = async (content: string) => {
+  const sendMessage = async (
+    content: string,
+    fileInfo?: { name: string; size: number; type: string }
+  ) => {
     if (!content.trim() || !puter) return;
     console.log(user);
     // Clear any existing streaming
@@ -61,6 +64,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
       role: "user",
       content,
       timestamp: new Date(),
+      file: fileInfo,
     };
 
     // Add user message

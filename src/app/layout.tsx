@@ -1,3 +1,4 @@
+import { FileAttachmentProvider } from "@/contexts/file-attachment/file_attachment_context";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -30,7 +31,7 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <FileAttachmentProvider>{children}</FileAttachmentProvider>
       </body>
     </html>
   );
