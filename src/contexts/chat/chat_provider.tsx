@@ -59,6 +59,22 @@ export function ChatProvider({ children }: ChatProviderProps) {
     // Clear any existing streaming
     streamingRef.current = { messageId: null, isStreaming: false };
 
+    // Check if the selected model supports reasoning
+    const supportsReasoning = [
+      "deepseek-reasoner",
+      "deepseek-ai/DeepSeek-R1",
+      "openrouter:deepseek/deepseek-r1:free",
+      "openrouter:deepseek-ai/deepseek-v2.5-reasoner",
+      "openrouter:qwen/qwen3-30b-a3b-thinking-2507",
+      "openrouter:qwen/qwen3-235b-a22b-thinking-2507",
+      "openrouter:thudm/glm-4.1v-9b-thinking",
+      "openrouter:mistralai/magistral-medium-2506:thinking",
+      "openrouter:arcee-ai/maestro-reasoning",
+      "openrouter:microsoft/phi-4-reasoning-plus",
+      "openrouter:perplexity/sonar-reasoning-pro",
+      "openrouter:perplexity/sonar-reasoning",
+    ].some((model) => state.selectedModel.includes(model));
+
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
@@ -79,6 +95,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
       role: "assistant",
       content: "",
       timestamp: new Date(),
+      hasReasoningCapability: supportsReasoning,
     };
     dispatch({ type: "ADD_MESSAGE", payload: aiMessage });
 
@@ -94,76 +111,281 @@ export function ChatProvider({ children }: ChatProviderProps) {
 
       // Optimized extraction with minimal type checking for speed
       // Optimized content extraction with fewer try-catch blocks and early returns
-      const extractChunkContent = (chunk: unknown): string => {
+      const extractChunkContent = (
+        chunk: unknown
+      ): { content: string; reasoning?: string } => {
         // Fast path for common cases
-        if (!chunk) return "";
-        if (typeof chunk === "string") return chunk;
+        if (!chunk) return { content: "" };
+        if (typeof chunk === "string") return { content: chunk };
+
+        // Log chunk for debugging specific deepseek model
+        if (
+          typeof chunk === "object" &&
+          state.selectedModel.includes("deepseek")
+        ) {
+          console.log("Deepseek model chunk:", JSON.stringify(chunk, null, 2));
+        }
 
         // Handle binary data with single TextDecoder instance
         const dec = new TextDecoder();
 
         // Process binary data efficiently
         if (chunk instanceof Uint8Array) {
-          return dec.decode(chunk);
+          return { content: dec.decode(chunk) };
         }
         if (chunk instanceof ArrayBuffer) {
-          return dec.decode(new Uint8Array(chunk));
+          return { content: dec.decode(new Uint8Array(chunk)) };
         }
 
         // Handle object format - simplified with direct property access
         if (typeof chunk === "object") {
           const obj = chunk as Record<string, unknown>;
 
-          // Direct access for common patterns (OpenAI, custom formats)
-          if (typeof obj.content === "string") return obj.content;
+          // Check for reasoning in multiple possible fields
+          let foundReasoning: string | undefined;
 
-          // Handle nested message format
+          // Check common reasoning field names
+          const reasoningFields = [
+            "reasoning",
+            "thinking",
+            "thought_process",
+            "thoughts",
+          ];
+          for (const field of reasoningFields) {
+            if (
+              typeof obj[field] === "string" &&
+              (obj[field] as string).trim() !== ""
+            ) {
+              foundReasoning = obj[field] as string;
+              console.log(
+                `Found reasoning in '${field}' field:`,
+                foundReasoning.substring(0, 50) + "..."
+              );
+              break;
+            }
+          }
+
+          // Direct access for common patterns (OpenAI, custom formats)
+          if (typeof obj.content === "string") {
+            return {
+              content: obj.content,
+              ...(foundReasoning && { reasoning: foundReasoning }),
+            };
+          }
+
+          // Handle nested message format with reasoning
           if (obj.message && typeof obj.message === "object") {
-            const msgContent = (obj.message as Record<string, unknown>).content;
-            if (typeof msgContent === "string") return msgContent;
+            const message = obj.message as Record<string, unknown>;
+            const msgContent = message.content;
+
+            // Check for reasoning in nested message
+            if (!foundReasoning) {
+              for (const field of reasoningFields) {
+                if (
+                  typeof message[field] === "string" &&
+                  (message[field] as string).trim() !== ""
+                ) {
+                  foundReasoning = message[field] as string;
+                  console.log(
+                    `Found reasoning in message.${field}:`,
+                    foundReasoning.substring(0, 50) + "..."
+                  );
+                  break;
+                }
+              }
+            }
+
+            if (typeof msgContent === "string") {
+              return {
+                content: msgContent,
+                ...(foundReasoning && { reasoning: foundReasoning }),
+              };
+            }
           }
 
           // Handle text property
-          if (typeof obj.text === "string") return obj.text;
+          if (typeof obj.text === "string") return { content: obj.text };
 
           // Handle OpenAI streaming format
           if (Array.isArray(obj.choices) && obj.choices[0]) {
             const delta = (obj.choices[0] as Record<string, unknown>).delta;
             if (delta && typeof delta === "object") {
               const deltaContent = (delta as Record<string, unknown>).content;
-              if (typeof deltaContent === "string") return deltaContent;
+              const deltaReasoning = (delta as Record<string, unknown>)
+                .reasoning;
+
+              if (typeof deltaContent === "string") {
+                if (
+                  typeof deltaReasoning === "string" &&
+                  deltaReasoning.trim() !== ""
+                ) {
+                  return { content: deltaContent, reasoning: deltaReasoning };
+                }
+                return { content: deltaContent };
+              }
             }
           }
         }
 
-        return "";
+        // Last resort: try generic regex extraction for common reasoning pattern
+        try {
+          const jsonStr = JSON.stringify(chunk);
+
+          // Look for reasoning in JSON string
+          const reasoningPatterns = [
+            /"reasoning":\s*"([^"]+)"/i,
+            /"thinking":\s*"([^"]+)"/i,
+            /"thought_process":\s*"([^"]+)"/i,
+            /"thoughts":\s*"([^"]+)"/i,
+          ];
+
+          for (const pattern of reasoningPatterns) {
+            const match = jsonStr.match(pattern);
+            if (match && match[1]) {
+              return { content: "", reasoning: match[1] };
+            }
+          }
+        } catch (e) {
+          console.error("Error in regex extraction:", e);
+        }
+
+        return { content: "" };
       };
 
-      // Optimized update function that directly updates the message without buffer delays
-      const updateMessage = (content: string) => {
-        if (!content) return;
+      // Variables for manual reasoning extraction
+      let manuallyExtractedReasoning = "";
+      let manualResponseContent = "";
 
-        fullContent += content;
+      // Optimized update function that directly updates the message without buffer delays
+      const updateMessage = (data: { content: string; reasoning?: string }) => {
+        if (!data.content && !data.reasoning) return;
+
+        // Add to full content
+        fullContent += data.content || "";
+
+        // For models that need manual extraction, try to extract reasoning and response
+        if (needsManualReasoningExtraction) {
+          // Parse incoming chunks for reasoning/response markers
+          const reasoningMatch = fullContent.match(
+            /<reasoning>([\s\S]*?)(?:<\/reasoning>|$)/
+          );
+          if (reasoningMatch && reasoningMatch[1]) {
+            manuallyExtractedReasoning = reasoningMatch[1].trim();
+          }
+
+          // Extract the actual response content
+          const responseMatch = fullContent.match(
+            /<response>([\s\S]*?)(?:<\/response>|$)/
+          );
+          if (responseMatch && responseMatch[1]) {
+            manualResponseContent = responseMatch[1].trim();
+
+            // Use the extracted response instead of the full content
+            if (manualResponseContent) {
+              // Update with the clean response (without the tags) and the extracted reasoning
+              dispatch({
+                type: "UPDATE_STREAMING_MESSAGE",
+                payload: {
+                  id: aiMessageId,
+                  content: manualResponseContent,
+                  reasoning: manuallyExtractedReasoning || data.reasoning,
+                },
+              });
+              return; // Skip the normal update below
+            }
+          }
+        }
+
+        // Store reasoning across chunks (standard flow)
+        if (data.reasoning) {
+          console.log(
+            `Updating message with reasoning: ${data.reasoning.substring(
+              0,
+              50
+            )}...`
+          );
+        }
+
         dispatch({
           type: "UPDATE_STREAMING_MESSAGE",
-          payload: { id: aiMessageId, content: fullContent },
+          payload: {
+            id: aiMessageId,
+            content: fullContent,
+            reasoning: data.reasoning,
+          },
         });
+
+        // Verify the message state after dispatch
+        setTimeout(() => {
+          const message = state.messages.find((msg) => msg.id === aiMessageId);
+          if (message) {
+            console.log(
+              `Message state after update - has reasoning: ${!!message.reasoning}`
+            );
+            if (message.reasoning) {
+              console.log(
+                `Current reasoning: ${message.reasoning.substring(0, 50)}...`
+              );
+            }
+          }
+        }, 100);
       };
 
       // No filler here — keep normal loading indicator until real chunks arrive
 
       // Skip unnecessary logging to speed up processing
 
+      // Check if the selected model supports reasoning
+      const supportsReasoning = [
+        "deepseek-reasoner",
+        "deepseek-ai/DeepSeek-R1",
+        "openrouter:deepseek/deepseek-r1:free",
+        "openrouter:qwen/qwen3-30b-a3b-thinking-2507",
+        "openrouter:qwen/qwen3-235b-a22b-thinking-2507",
+        "openrouter:thudm/glm-4.1v-9b-thinking",
+        "openrouter:mistralai/magistral-medium-2506:thinking",
+      ].some((model) => state.selectedModel.includes(model));
+
+      // For models where we know the API doesn't return reasoning directly,
+      // we can use a special prompt format to extract reasoning manually
+      const needsManualReasoningExtraction =
+        state.selectedModel.includes("deepseek") ||
+        state.selectedModel.includes(
+          "openrouter:deepseek-ai/deepseek-v2.5-reasoner"
+        );
+
+      // Special prompt for reasoning-capable models
+      let enhancedPrompt = content;
+
+      if (supportsReasoning) {
+        if (needsManualReasoningExtraction) {
+          // Format that makes it easier to parse reasoning and response separately
+          enhancedPrompt = `Please respond to this request: "${content}"\n\nFirst, provide your reasoning using the following format:\n<reasoning>\nYour step-by-step reasoning process here...\n</reasoning>\n\nThen provide your final response using this format:\n<response>\nYour final response here...\n</response>`;
+        } else {
+          // For models that handle reasoning natively
+          enhancedPrompt = `${content}\n\nNote: Please respond in English. For this response, first think step-by-step about how to answer this question (this thinking won't be shown to the user), and then provide your final answer.`;
+        }
+      }
+
       // Immediately call puter.ai.chat for faster response
       const maybeStream = puter.ai.chat(
-        content,
+        enhancedPrompt,
         {
           model: state.selectedModel, // Use the selected model from state
           stream: true,
+          ...(supportsReasoning && {
+            additional_parameters: {
+              show_reasoning: true,
+              include_reasoning: true,
+              include_thinking: true,
+              thinking: true,
+              reasoning: true,
+            },
+          }),
         },
         false
       );
-      console.log(maybeStream);
+      console.log("AI Response initial:", maybeStream);
 
       // Support promise or direct stream-like return without using `any`
       const stream =
@@ -236,7 +458,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
               else if (value instanceof ArrayBuffer)
                 text = dec.decode(new Uint8Array(value));
               else text = String(value);
-              updateMessage(text);
+              updateMessage({ content: text });
             }
           }
         } else if (
@@ -272,17 +494,90 @@ export function ChatProvider({ children }: ChatProviderProps) {
         // Non-iterable fallback: await response and extract content
         const response = stream as unknown;
         let responseContent = "";
+        let reasoning: string | undefined;
+
+        console.log("Raw AI response:", JSON.stringify(response, null, 2));
+
         if (response && typeof response === "object") {
           const r = response as Record<string, unknown>;
-          if ("content" in r && typeof r.content === "string") {
-            responseContent = r.content as string;
-          } else if (
-            "message" in r &&
-            r.message &&
-            typeof (r.message as Record<string, unknown>).content === "string"
-          ) {
-            responseContent = (r.message as Record<string, unknown>)
-              .content as string;
+          console.log("Response keys:", Object.keys(r));
+
+          // Special handling for Deepseek models
+          if (state.selectedModel.includes("deepseek")) {
+            console.log("Processing Deepseek model response");
+
+            // Try to find reasoning in various potential locations
+            if (r.thinking && typeof r.thinking === "string") {
+              reasoning = r.thinking as string;
+              console.log("Found reasoning in 'thinking' field");
+            } else if (
+              r.thought_process &&
+              typeof r.thought_process === "string"
+            ) {
+              reasoning = r.thought_process as string;
+              console.log("Found reasoning in 'thought_process' field");
+            } else if (r.reasoning && typeof r.reasoning === "string") {
+              reasoning = r.reasoning as string;
+              console.log("Found reasoning directly in response");
+            }
+
+            // Try common content patterns for deepseek
+            if (typeof r.response === "string") {
+              responseContent = r.response as string;
+            }
+          }
+
+          // Standard patterns
+          if (!responseContent) {
+            if ("content" in r && typeof r.content === "string") {
+              responseContent = r.content as string;
+              console.log("Found content directly in response");
+            } else if (
+              "message" in r &&
+              r.message &&
+              typeof r.message === "object"
+            ) {
+              const message = r.message as Record<string, unknown>;
+
+              console.log("Response message keys:", Object.keys(message));
+
+              // Get content
+              if (typeof message.content === "string") {
+                responseContent = message.content as string;
+                console.log("Found content in message");
+              }
+
+              // Check for reasoning field
+              if (!reasoning) {
+                if (typeof message.reasoning === "string") {
+                  reasoning = message.reasoning as string;
+                  console.log(
+                    "Found reasoning in response message:",
+                    reasoning
+                  );
+                } else if (typeof message.thinking === "string") {
+                  reasoning = message.thinking as string;
+                  console.log("Found thinking in response message");
+                } else if (typeof message.thought_process === "string") {
+                  reasoning = message.thought_process as string;
+                  console.log("Found thought_process in response message");
+                }
+              }
+            }
+          } else if (Array.isArray(r.choices) && r.choices.length > 0) {
+            // Handle OpenAI format
+            const choice = r.choices[0] as Record<string, unknown>;
+            if (choice.message && typeof choice.message === "object") {
+              const message = choice.message as Record<string, unknown>;
+              if (typeof message.content === "string") {
+                responseContent = message.content as string;
+              }
+
+              if (typeof message.reasoning === "string") {
+                reasoning = message.reasoning as string;
+                console.log("Found reasoning in OpenAI response:", reasoning);
+              }
+            }
           } else {
             responseContent = "No response from AI";
           }
@@ -292,17 +587,105 @@ export function ChatProvider({ children }: ChatProviderProps) {
           responseContent = "No response from AI";
         }
 
-        updateMessage(responseContent);
+        // Update with both content and reasoning if available
+        updateMessage({
+          content: responseContent,
+          ...(reasoning && { reasoning }),
+        });
+
+        // Log for debugging
+        console.log("Received response:", {
+          content: responseContent,
+          reasoning,
+        });
       }
 
       // Mark streaming finished and immediately complete the response
       streamingRef.current = { messageId: null, isStreaming: false };
 
+      // Find the current message to get the most recent reasoning value
+      const currentMessage = state.messages.find(
+        (msg) => msg.id === aiMessageId
+      );
+      const currentReasoning = currentMessage?.reasoning;
+
+      // For models that need help with reasoning, try one final extraction attempt
+      if (
+        !manuallyExtractedReasoning &&
+        !currentReasoning &&
+        needsManualReasoningExtraction
+      ) {
+        console.log(
+          "Attempting automated reasoning extraction as a last resort"
+        );
+
+        // Look for patterns that might indicate reasoning sections
+        const possiblePatterns = [
+          // Try to find text between reasoning related markers
+          /(?:reasoning|thinking|thought process|steps|first,)[\s\S]*?(?:final answer|response|conclusion|therefore)/i,
+          // Try to find text that starts with "Let me think"
+          /let me think[\s\S]*?(?:my answer|final answer|here's|therefore)/i,
+          // Try to find text that contains step by step thinking
+          /(?:step 1|first,|to answer this)[\s\S]*?(?:final answer|in conclusion|therefore)/i,
+        ];
+
+        for (const pattern of possiblePatterns) {
+          const match = fullContent.match(pattern);
+          if (match && match[0] && match[0].length > 30) {
+            // Make sure it's substantial
+            manuallyExtractedReasoning = match[0].trim();
+            console.log(
+              "Auto-extracted reasoning:",
+              manuallyExtractedReasoning.substring(0, 50) + "..."
+            );
+            break;
+          }
+        }
+      }
+
+      // For final update, check if we've manually extracted any reasoning
+      const finalReasoning = manuallyExtractedReasoning || currentReasoning;
+      const finalContent =
+        needsManualReasoningExtraction && manualResponseContent
+          ? manualResponseContent
+          : fullContent;
+
+      console.log(
+        "Final message update - Reasoning available:",
+        !!finalReasoning
+      );
+      if (finalReasoning) {
+        console.log(
+          "Final reasoning content:",
+          finalReasoning.substring(0, 50) + "..."
+        );
+      }
+
+      if (manuallyExtractedReasoning) {
+        console.log("Successfully extracted manual reasoning from response");
+      }
+
       // Ensure final content is set and clear loading
       dispatch({
         type: "UPDATE_STREAMING_MESSAGE",
-        payload: { id: aiMessageId, content: fullContent },
+        payload: {
+          id: aiMessageId,
+          content: finalContent,
+          reasoning: finalReasoning, // Use manually extracted reasoning if available
+        },
       });
+
+      // Verify the message was updated correctly
+      setTimeout(() => {
+        const updatedMessage = state.messages.find(
+          (msg) => msg.id === aiMessageId
+        );
+        console.log(
+          "Final message has reasoning:",
+          !!updatedMessage?.reasoning
+        );
+      }, 100);
+
       dispatch({ type: "SET_LOADING", payload: false });
     } catch (e) {
       console.log("Error during AI chat streaming:", e);

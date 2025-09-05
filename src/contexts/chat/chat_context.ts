@@ -21,7 +21,7 @@ type ChatAction =
   | { type: "SET_MODEL"; payload: string }
   | {
       type: "UPDATE_STREAMING_MESSAGE";
-      payload: { id: string; content: string };
+      payload: { id: string; content: string; reasoning?: string };
     };
 
 export const initialState: ChatState = {
@@ -38,11 +38,22 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
     case "UPDATE_STREAMING_MESSAGE":
       return {
         ...state,
-        messages: state.messages.map((msg) =>
-          msg.id === action.payload.id
-            ? { ...msg, content: action.payload.content }
-            : msg
-        ),
+        messages: state.messages.map((msg) => {
+          if (msg.id === action.payload.id) {
+            const updatedMsg = {
+              ...msg,
+              content: action.payload.content,
+            };
+
+            // Only update reasoning if provided in payload, otherwise keep existing
+            if (action.payload.reasoning !== undefined) {
+              updatedMsg.reasoning = action.payload.reasoning;
+            }
+
+            return updatedMsg;
+          }
+          return msg;
+        }),
       };
     case "ADD_MESSAGE":
       return {

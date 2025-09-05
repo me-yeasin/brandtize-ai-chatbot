@@ -13,14 +13,28 @@ interface FormattedMessageProps {
     size: number;
     type: string;
   };
+  reasoning?: string;
+  hasReasoningCapability?: boolean; // Flag to indicate if the model supports reasoning
 }
 
 // Use a WeakMap to store delegated click handlers for each container node.
 const copyHandlerMap = new WeakMap<HTMLDivElement, (e: MouseEvent) => void>();
 
-const FormattedMessage = ({ content }: FormattedMessageProps) => {
+const FormattedMessage = ({
+  content,
+  reasoning,
+  hasReasoningCapability,
+}: FormattedMessageProps) => {
   const messageRef = useRef<HTMLDivElement>(null);
   const [copyStates, setCopyStates] = useState<Record<string, boolean>>({});
+  const [showReasoning, setShowReasoning] = useState<boolean>(false);
+
+  // Check if reasoning is available for debugging purposes
+  useEffect(() => {
+    if (reasoning && reasoning.trim() !== "") {
+      console.log("FormattedMessage received reasoning data");
+    }
+  }, [reasoning]);
 
   // Parse markdown and enhance code blocks - optimized for performance
   useEffect(() => {
@@ -197,8 +211,103 @@ const FormattedMessage = ({ content }: FormattedMessageProps) => {
     });
   }, [copyStates]);
 
+  // Store a formatted version of the reasoning
+  const [formattedReasoning, setFormattedReasoning] = useState<string>("");
+
+  // Process reasoning content when it becomes available
+  useEffect(() => {
+    if (!reasoning) {
+      setFormattedReasoning("");
+      return;
+    }
+
+    try {
+      // Configure marked for better performance
+      const markedOptions = {
+        breaks: true,
+        gfm: true,
+        async: false, // Synchronous parsing is faster for short content
+      };
+
+      // Parse markdown to HTML
+      const rawHtml = marked.parse(reasoning, markedOptions) as string;
+
+      // Store the formatted reasoning
+      setFormattedReasoning(rawHtml);
+    } catch (error) {
+      console.error("Error rendering reasoning:", error);
+      // Use plain text as fallback
+      setFormattedReasoning("");
+    }
+  }, [reasoning]);
+
+  // Toggle reasoning visibility
+  const toggleReasoning = () => {
+    setShowReasoning((prev) => !prev);
+  };
+
   return (
-    <div ref={messageRef} className="markdown-content text-white break-words" />
+    <div className="flex flex-col gap-2">
+      <div
+        ref={messageRef}
+        className="markdown-content text-white break-words"
+      />
+
+      {/* Show reasoning toggle if reasoning is available or the model has reasoning capabilities */}
+      {((reasoning && reasoning.trim() !== "") || hasReasoningCapability) && (
+        <div className="flex flex-col mt-2">
+          <button
+            onClick={toggleReasoning}
+            className="text-xs text-gray-400 hover:text-gray-200 hover:bg-gray-700 self-start flex items-center gap-1 bg-gray-800 px-2 py-1 rounded transition-colors border border-gray-700"
+          >
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="12"
+              height="12"
+              fill="currentColor"
+              viewBox="0 0 16 16"
+              className={`transition-transform ${
+                showReasoning ? "rotate-180" : ""
+              }`}
+            >
+              <path
+                fillRule="evenodd"
+                d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z"
+              />
+            </svg>
+            {showReasoning
+              ? "Hide thinking"
+              : reasoning
+              ? "Show thinking"
+              : "Model has reasoning"}
+          </button>
+
+          {showReasoning && (
+            <div className="mt-2 p-3 bg-gray-900 border border-gray-700 rounded-md">
+              <div className="text-xs text-gray-400 mb-1">Model reasoning:</div>
+              {reasoning && reasoning.trim() !== "" ? (
+                formattedReasoning ? (
+                  <div
+                    className="markdown-content text-gray-300 text-sm break-words"
+                    dangerouslySetInnerHTML={{ __html: formattedReasoning }}
+                  />
+                ) : (
+                  <div className="text-gray-300 text-sm whitespace-pre-wrap">
+                    {reasoning}
+                  </div>
+                )
+              ) : (
+                <div className="text-gray-400 text-sm italic">
+                  {hasReasoningCapability
+                    ? "This model has reasoning capabilities but didn't provide explicit reasoning for this response."
+                    : "Reasoning is not available for this response."}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
   );
 };
 

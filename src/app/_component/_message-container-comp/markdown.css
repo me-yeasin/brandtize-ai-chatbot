@@ -276,3 +276,43 @@
   margin: 1rem auto;
   border-radius: 6px;
 }
+
+/* Reasoning styles */
+.reasoning-container {
+  margin-top: 0.5rem;
+  padding: 0.75rem;
+  background-color: rgba(30, 30, 30, 0.5);
+  border-radius: 6px;
+  border: 1px solid rgba(80, 80, 80, 0.3);
+}
+
+.reasoning-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: #888;
+  background-color: rgba(50, 50, 50, 0.5);
+  padding: 0.25rem 0.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: color 0.2s;
+  border: none;
+  margin-top: 0.5rem;
+}
+
+.reasoning-toggle:hover {
+  color: #ccc;
+}
+
+.reasoning-toggle svg {
+  transition: transform 0.2s ease;
+}
+
+.reasoning-content {
+  font-size: 0.85rem;
+  opacity: 0.85;
+  padding-top: 0.5rem;
+  margin-top: 0.5rem;
+  border-top: 1px solid rgba(80, 80, 80, 0.3);
+}

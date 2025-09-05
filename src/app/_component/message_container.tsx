@@ -78,7 +78,11 @@ const MessageContainer = () => {
                     ) : msg.file ? (
                       <MessageWithFile content={msg.content} file={msg.file} />
                     ) : (
-                      <FormattedMessage content={msg.content} />
+                      <FormattedMessage
+                        content={msg.content}
+                        reasoning={msg.reasoning}
+                        hasReasoningCapability={msg.hasReasoningCapability}
+                      />
                     )}
                   </div>
                   {showRegenerateButton && (

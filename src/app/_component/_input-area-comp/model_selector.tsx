@@ -5,6 +5,21 @@ import { useEffect, useRef, useState } from "react";
 
 // Models list
 
+// Define models with reasoning capabilities
+const REASONING_MODELS = [
+  "deepseek-ai/DeepSeek-R1",
+  "deepseek-reasoner",
+  "deepseek-chat",
+  "deepseek-coder",
+  "openrouter:deepseek/deepseek-r1:free",
+  "openrouter:deepseek/deepseek-reasoner",
+  "openrouter:deepseek/deepseek-chat",
+  "openrouter:qwen/qwen3-30b-a3b-thinking-2507",
+  "openrouter:qwen/qwen3-235b-a22b-thinking-2507",
+  "openrouter:thudm/glm-4.1v-9b-thinking",
+  "openrouter:mistralai/magistral-medium-2506:thinking",
+];
+
 // Models list
 const AI_MODELS = [
   "gpt-5-2025-08-07",
@@ -76,6 +91,328 @@ const AI_MODELS = [
   "deepseek-reasoner",
   "gemini-1.5-flash",
   "gemini-2.0-flash",
+  "openrouter:moonshotai/kimi-k2-0905",
+  "openrouter:deepcogito/cogito-v2-preview-llama-109b-moe",
+  "openrouter:deepcogito/cogito-v2-preview-deepseek-671b",
+  "openrouter:qwen/qwen3-30b-a3b-thinking-2507",
+  "openrouter:x-ai/grok-code-fast-1",
+  "openrouter:nousresearch/hermes-4-70b",
+  "openrouter:nousresearch/hermes-4-405b",
+  "openrouter:google/gemini-2.5-flash-image-preview",
+  "openrouter:deepseek/deepseek-chat-v3.1:free",
+  "openrouter:deepseek/deepseek-chat-v3.1",
+  "openrouter:deepseek/deepseek-v3.1-base",
+  "openrouter:openai/gpt-4o-audio-preview",
+  "openrouter:mistralai/mistral-medium-3.1",
+  "openrouter:baidu/ernie-4.5-21b-a3b",
+  "openrouter:baidu/ernie-4.5-vl-28b-a3b",
+  "openrouter:z-ai/glm-4.5v",
+  "openrouter:ai21/jamba-mini-1.7",
+  "openrouter:ai21/jamba-large-1.7",
+  "openrouter:openai/gpt-5-chat",
+  "openrouter:openai/gpt-5",
+  "openrouter:openai/gpt-5-mini",
+  "openrouter:openai/gpt-5-nano",
+  "openrouter:openai/gpt-oss-120b:free",
+  "openrouter:openai/gpt-oss-120b",
+  "openrouter:openai/gpt-oss-20b:free",
+  "openrouter:openai/gpt-oss-20b",
+  "openrouter:anthropic/claude-opus-4.1",
+  "openrouter:mistralai/codestral-2508",
+  "openrouter:qwen/qwen3-coder-30b-a3b-instruct",
+  "openrouter:qwen/qwen3-30b-a3b-instruct-2507",
+  "openrouter:z-ai/glm-4.5",
+  "openrouter:z-ai/glm-4.5-air:free",
+  "openrouter:z-ai/glm-4.5-air",
+  "openrouter:qwen/qwen3-235b-a22b-thinking-2507",
+  "openrouter:z-ai/glm-4-32b",
+  "openrouter:qwen/qwen3-coder:free",
+  "openrouter:qwen/qwen3-coder",
+  "openrouter:bytedance/ui-tars-1.5-7b",
+  "openrouter:google/gemini-2.5-flash-lite",
+  "openrouter:qwen/qwen3-235b-a22b-2507",
+  "openrouter:switchpoint/router",
+  "openrouter:moonshotai/kimi-k2:free",
+  "openrouter:moonshotai/kimi-k2",
+  "openrouter:thudm/glm-4.1v-9b-thinking",
+  "openrouter:mistralai/devstral-medium",
+  "openrouter:mistralai/devstral-small",
+  "openrouter:cognitivecomputations/dolphin-mistral-24b-venice-edition:free",
+  "openrouter:x-ai/grok-4",
+  "openrouter:google/gemma-3n-e2b-it:free",
+  "openrouter:tencent/hunyuan-a13b-instruct:free",
+  "openrouter:tencent/hunyuan-a13b-instruct",
+  "openrouter:tngtech/deepseek-r1t2-chimera:free",
+  "openrouter:morph/morph-v3-large",
+  "openrouter:morph/morph-v3-fast",
+  "openrouter:baidu/ernie-4.5-vl-424b-a47b",
+  "openrouter:baidu/ernie-4.5-300b-a47b",
+  "openrouter:thedrummer/anubis-70b-v1.1",
+  "openrouter:inception/mercury",
+  "openrouter:mistralai/mistral-small-3.2-24b-instruct:free",
+  "openrouter:mistralai/mistral-small-3.2-24b-instruct",
+  "openrouter:minimax/minimax-m1",
+  "openrouter:google/gemini-2.5-flash-lite-preview-06-17",
+  "openrouter:google/gemini-2.5-flash",
+  "openrouter:google/gemini-2.5-pro",
+  "openrouter:moonshotai/kimi-dev-72b:free",
+  "openrouter:moonshotai/kimi-dev-72b",
+  "openrouter:openai/o3-pro",
+  "openrouter:x-ai/grok-3-mini",
+  "openrouter:x-ai/grok-3",
+  "openrouter:mistralai/magistral-small-2506",
+  "openrouter:mistralai/magistral-medium-2506",
+  "openrouter:mistralai/magistral-medium-2506:thinking",
+  "openrouter:google/gemini-2.5-pro-preview",
+  "openrouter:deepseek/deepseek-r1-0528-qwen3-8b:free",
+  "openrouter:deepseek/deepseek-r1-0528-qwen3-8b",
+  "openrouter:deepseek/deepseek-r1-0528:free",
+  "openrouter:deepseek/deepseek-r1-0528",
+  "openrouter:anthropic/claude-opus-4",
+  "openrouter:anthropic/claude-sonnet-4",
+  "openrouter:mistralai/devstral-small-2505:free",
+  "openrouter:mistralai/devstral-small-2505",
+  "openrouter:google/gemma-3n-e4b-it:free",
+  "openrouter:google/gemma-3n-e4b-it",
+  "openrouter:openai/codex-mini",
+  "openrouter:meta-llama/llama-3.3-8b-instruct:free",
+  "openrouter:nousresearch/deephermes-3-mistral-24b-preview",
+  "openrouter:mistralai/mistral-medium-3",
+  "openrouter:google/gemini-2.5-pro-preview-05-06",
+  "openrouter:arcee-ai/spotlight",
+  "openrouter:arcee-ai/maestro-reasoning",
+  "openrouter:arcee-ai/virtuoso-large",
+  "openrouter:arcee-ai/coder-large",
+  "openrouter:microsoft/phi-4-reasoning-plus",
+  "openrouter:inception/mercury-coder",
+  "openrouter:qwen/qwen3-4b:free",
+  "openrouter:deepseek/deepseek-prover-v2",
+  "openrouter:meta-llama/llama-guard-4-12b",
+  "openrouter:qwen/qwen3-30b-a3b:free",
+  "openrouter:qwen/qwen3-30b-a3b",
+  "openrouter:qwen/qwen3-8b:free",
+  "openrouter:qwen/qwen3-8b",
+  "openrouter:qwen/qwen3-14b:free",
+  "openrouter:qwen/qwen3-14b",
+  "openrouter:qwen/qwen3-32b",
+  "openrouter:qwen/qwen3-235b-a22b:free",
+  "openrouter:qwen/qwen3-235b-a22b",
+  "openrouter:tngtech/deepseek-r1t-chimera:free",
+  "openrouter:tngtech/deepseek-r1t-chimera",
+  "openrouter:microsoft/mai-ds-r1:free",
+  "openrouter:microsoft/mai-ds-r1",
+  "openrouter:thudm/glm-z1-32b",
+  "openrouter:thudm/glm-4-32b",
+  "openrouter:openai/o4-mini-high",
+  "openrouter:openai/o3",
+  "openrouter:openai/o4-mini",
+  "openrouter:shisa-ai/shisa-v2-llama3.3-70b:free",
+  "openrouter:shisa-ai/shisa-v2-llama3.3-70b",
+  "openrouter:openai/gpt-4.1",
+  "openrouter:openai/gpt-4.1-mini",
+  "openrouter:openai/gpt-4.1-nano",
+  "openrouter:eleutherai/llemma_7b",
+  "openrouter:alfredpros/codellama-7b-instruct-solidity",
+  "openrouter:arliai/qwq-32b-arliai-rpr-v1:free",
+  "openrouter:arliai/qwq-32b-arliai-rpr-v1",
+  "openrouter:agentica-org/deepcoder-14b-preview:free",
+  "openrouter:agentica-org/deepcoder-14b-preview",
+  "openrouter:moonshotai/kimi-vl-a3b-thinking:free",
+  "openrouter:moonshotai/kimi-vl-a3b-thinking",
+  "openrouter:x-ai/grok-3-mini-beta",
+  "openrouter:x-ai/grok-3-beta",
+  "openrouter:nvidia/llama-3.3-nemotron-super-49b-v1",
+  "openrouter:nvidia/llama-3.1-nemotron-ultra-253b-v1:free",
+  "openrouter:nvidia/llama-3.1-nemotron-ultra-253b-v1",
+  "openrouter:meta-llama/llama-4-maverick:free",
+  "openrouter:meta-llama/llama-4-maverick",
+  "openrouter:meta-llama/llama-4-scout:free",
+  "openrouter:meta-llama/llama-4-scout",
+  "openrouter:google/gemini-2.5-pro-exp-03-25",
+  "openrouter:qwen/qwen2.5-vl-32b-instruct:free",
+  "openrouter:qwen/qwen2.5-vl-32b-instruct",
+  "openrouter:deepseek/deepseek-chat-v3-0324:free",
+  "openrouter:deepseek/deepseek-chat-v3-0324",
+  "openrouter:openai/o1-pro",
+  "openrouter:mistralai/mistral-small-3.1-24b-instruct:free",
+  "openrouter:mistralai/mistral-small-3.1-24b-instruct",
+  "openrouter:google/gemma-3-4b-it:free",
+  "openrouter:google/gemma-3-4b-it",
+  "openrouter:google/gemma-3-12b-it:free",
+  "openrouter:google/gemma-3-12b-it",
+  "openrouter:cohere/command-a",
+  "openrouter:openai/gpt-4o-mini-search-preview",
+  "openrouter:openai/gpt-4o-search-preview",
+  "openrouter:rekaai/reka-flash-3:free",
+  "openrouter:google/gemma-3-27b-it:free",
+  "openrouter:google/gemma-3-27b-it",
+  "openrouter:thedrummer/anubis-pro-105b-v1",
+  "openrouter:thedrummer/skyfall-36b-v2",
+  "openrouter:microsoft/phi-4-multimodal-instruct",
+  "openrouter:perplexity/sonar-reasoning-pro",
+  "openrouter:perplexity/sonar-pro",
+  "openrouter:perplexity/sonar-deep-research",
+  "openrouter:qwen/qwq-32b:free",
+  "openrouter:qwen/qwq-32b",
+  "openrouter:nousresearch/deephermes-3-llama-3-8b-preview:free",
+  "openrouter:google/gemini-2.0-flash-lite-001",
+  "openrouter:anthropic/claude-3.7-sonnet",
+  "openrouter:anthropic/claude-3.7-sonnet:thinking",
+  "openrouter:perplexity/r1-1776",
+  "openrouter:mistralai/mistral-saba",
+  "openrouter:cognitivecomputations/dolphin3.0-r1-mistral-24b:free",
+  "openrouter:cognitivecomputations/dolphin3.0-r1-mistral-24b",
+  "openrouter:cognitivecomputations/dolphin3.0-mistral-24b:free",
+  "openrouter:cognitivecomputations/dolphin3.0-mistral-24b",
+  "openrouter:meta-llama/llama-guard-3-8b",
+  "openrouter:openai/o3-mini-high",
+  "openrouter:deepseek/deepseek-r1-distill-llama-8b",
+  "openrouter:google/gemini-2.0-flash-001",
+  "openrouter:qwen/qwen-vl-plus",
+  "openrouter:aion-labs/aion-1.0",
+  "openrouter:aion-labs/aion-1.0-mini",
+  "openrouter:aion-labs/aion-rp-llama-3.1-8b",
+  "openrouter:qwen/qwen-vl-max",
+  "openrouter:qwen/qwen-turbo",
+  "openrouter:qwen/qwen2.5-vl-72b-instruct:free",
+  "openrouter:qwen/qwen2.5-vl-72b-instruct",
+  "openrouter:qwen/qwen-plus",
+  "openrouter:qwen/qwen-max",
+  "openrouter:openai/o3-mini",
+  "openrouter:mistralai/mistral-small-24b-instruct-2501:free",
+  "openrouter:mistralai/mistral-small-24b-instruct-2501",
+  "openrouter:deepseek/deepseek-r1-distill-qwen-32b",
+  "openrouter:deepseek/deepseek-r1-distill-qwen-14b:free",
+  "openrouter:deepseek/deepseek-r1-distill-qwen-14b",
+  "openrouter:perplexity/sonar-reasoning",
+  "openrouter:perplexity/sonar",
+  "openrouter:liquid/lfm-7b",
+  "openrouter:liquid/lfm-3b",
+  "openrouter:deepseek/deepseek-r1-distill-llama-70b:free",
+  "openrouter:deepseek/deepseek-r1-distill-llama-70b",
+  "openrouter:deepseek/deepseek-r1:free",
+  "openrouter:deepseek/deepseek-r1",
+  "openrouter:minimax/minimax-01",
+  "openrouter:mistralai/codestral-2501",
+  "openrouter:microsoft/phi-4",
+  "openrouter:deepseek/deepseek-chat",
+  "openrouter:sao10k/l3.3-euryale-70b",
+  "openrouter:openai/o1",
+  "openrouter:x-ai/grok-2-vision-1212",
+  "openrouter:x-ai/grok-2-1212",
+  "openrouter:cohere/command-r7b-12-2024",
+  "openrouter:google/gemini-2.0-flash-exp:free",
+  "openrouter:meta-llama/llama-3.3-70b-instruct:free",
+  "openrouter:meta-llama/llama-3.3-70b-instruct",
+  "openrouter:amazon/nova-lite-v1",
+  "openrouter:amazon/nova-micro-v1",
+  "openrouter:amazon/nova-pro-v1",
+  "openrouter:qwen/qwq-32b-preview",
+  "openrouter:openai/gpt-4o-2024-11-20",
+  "openrouter:mistralai/mistral-large-2411",
+  "openrouter:mistralai/mistral-large-2407",
+  "openrouter:mistralai/pixtral-large-2411",
+  "openrouter:x-ai/grok-vision-beta",
+  "openrouter:infermatic/mn-inferor-12b",
+  "openrouter:qwen/qwen-2.5-coder-32b-instruct:free",
+  "openrouter:qwen/qwen-2.5-coder-32b-instruct",
+  "openrouter:raifle/sorcererlm-8x22b",
+  "openrouter:thedrummer/unslopnemo-12b",
+  "openrouter:anthropic/claude-3.5-haiku-20241022",
+  "openrouter:anthropic/claude-3.5-haiku",
+  "openrouter:anthropic/claude-3.5-sonnet",
+  "openrouter:anthracite-org/magnum-v4-72b",
+  "openrouter:mistralai/ministral-3b",
+  "openrouter:mistralai/ministral-8b",
+  "openrouter:qwen/qwen-2.5-7b-instruct",
+  "openrouter:nvidia/llama-3.1-nemotron-70b-instruct",
+  "openrouter:inflection/inflection-3-productivity",
+  "openrouter:inflection/inflection-3-pi",
+  "openrouter:google/gemini-flash-1.5-8b",
+  "openrouter:anthracite-org/magnum-v2-72b",
+  "openrouter:thedrummer/rocinante-12b",
+  "openrouter:meta-llama/llama-3.2-11b-vision-instruct",
+  "openrouter:meta-llama/llama-3.2-1b-instruct",
+  "openrouter:meta-llama/llama-3.2-90b-vision-instruct",
+  "openrouter:meta-llama/llama-3.2-3b-instruct:free",
+  "openrouter:meta-llama/llama-3.2-3b-instruct",
+  "openrouter:qwen/qwen-2.5-72b-instruct:free",
+  "openrouter:qwen/qwen-2.5-72b-instruct",
+  "openrouter:neversleep/llama-3.1-lumimaid-8b",
+  "openrouter:openai/o1-mini",
+  "openrouter:openai/o1-mini-2024-09-12",
+  "openrouter:mistralai/pixtral-12b",
+  "openrouter:cohere/command-r-plus-08-2024",
+  "openrouter:cohere/command-r-08-2024",
+  "openrouter:qwen/qwen-2.5-vl-7b-instruct",
+  "openrouter:sao10k/l3.1-euryale-70b",
+  "openrouter:microsoft/phi-3.5-mini-128k-instruct",
+  "openrouter:nousresearch/hermes-3-llama-3.1-70b",
+  "openrouter:nousresearch/hermes-3-llama-3.1-405b",
+  "openrouter:openai/chatgpt-4o-latest",
+  "openrouter:sao10k/l3-lunaris-8b",
+  "openrouter:openai/gpt-4o-2024-08-06",
+  "openrouter:meta-llama/llama-3.1-405b",
+  "openrouter:meta-llama/llama-3.1-70b-instruct",
+  "openrouter:meta-llama/llama-3.1-8b-instruct",
+  "openrouter:meta-llama/llama-3.1-405b-instruct:free",
+  "openrouter:meta-llama/llama-3.1-405b-instruct",
+  "openrouter:mistralai/mistral-nemo:free",
+  "openrouter:mistralai/mistral-nemo",
+  "openrouter:openai/gpt-4o-mini",
+  "openrouter:openai/gpt-4o-mini-2024-07-18",
+  "openrouter:google/gemma-2-27b-it",
+  "openrouter:google/gemma-2-9b-it:free",
+  "openrouter:google/gemma-2-9b-it",
+  "openrouter:anthropic/claude-3.5-sonnet-20240620",
+  "openrouter:sao10k/l3-euryale-70b",
+  "openrouter:cognitivecomputations/dolphin-mixtral-8x22b",
+  "openrouter:mistralai/mistral-7b-instruct-v0.3",
+  "openrouter:mistralai/mistral-7b-instruct:free",
+  "openrouter:mistralai/mistral-7b-instruct",
+  "openrouter:nousresearch/hermes-2-pro-llama-3-8b",
+  "openrouter:microsoft/phi-3-mini-128k-instruct",
+  "openrouter:microsoft/phi-3-medium-128k-instruct",
+  "openrouter:neversleep/llama-3-lumimaid-70b",
+  "openrouter:google/gemini-flash-1.5",
+  "openrouter:openai/gpt-4o-2024-05-13",
+  "openrouter:openai/gpt-4o",
+  "openrouter:openai/gpt-4o:extended",
+  "openrouter:meta-llama/llama-guard-2-8b",
+  "openrouter:meta-llama/llama-3-8b-instruct",
+  "openrouter:meta-llama/llama-3-70b-instruct",
+  "openrouter:mistralai/mixtral-8x22b-instruct",
+  "openrouter:microsoft/wizardlm-2-8x22b",
+  "openrouter:google/gemini-pro-1.5",
+  "openrouter:openai/gpt-4-turbo",
+  "openrouter:cohere/command-r-plus",
+  "openrouter:cohere/command-r-plus-04-2024",
+  "openrouter:sophosympatheia/midnight-rose-70b",
+  "openrouter:cohere/command-r",
+  "openrouter:cohere/command",
+  "openrouter:anthropic/claude-3-haiku",
+  "openrouter:anthropic/claude-3-opus",
+  "openrouter:cohere/command-r-03-2024",
+  "openrouter:mistralai/mistral-large",
+  "openrouter:openai/gpt-4-turbo-preview",
+  "openrouter:openai/gpt-3.5-turbo-0613",
+  "openrouter:mistralai/mistral-small",
+  "openrouter:mistralai/mistral-tiny",
+  "openrouter:mistralai/mixtral-8x7b-instruct",
+  "openrouter:neversleep/noromaid-20b",
+  "openrouter:alpindale/goliath-120b",
+  "openrouter:openrouter/auto",
+  "openrouter:openai/gpt-4-1106-preview",
+  "openrouter:openai/gpt-3.5-turbo-instruct",
+  "openrouter:mistralai/mistral-7b-instruct-v0.1",
+  "openrouter:pygmalionai/mythalion-13b",
+  "openrouter:openai/gpt-3.5-turbo-16k",
+  "openrouter:mancer/weaver",
+  "openrouter:undi95/remm-slerp-l2-13b",
+  "openrouter:gryphe/mythomax-l2-13b",
+  "openrouter:openai/gpt-4-0314",
+  "openrouter:openai/gpt-4",
+  "openrouter:openai/gpt-3.5-turbo",
 ];
 
 const ModelSelector = () => {
@@ -139,11 +476,19 @@ const ModelSelector = () => {
         >
           <path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.929 2.929 0 1 1 0-5.86 2.929 2.929 0 0 1 0 5.858z" />
         </svg>
-        <span>
+        <span className="flex items-center gap-1">
           Model:{" "}
           <span className="text-blue-400 truncate max-w-[60px] inline-block align-bottom">
             {selectedModel.split("/").pop()}
           </span>
+          {REASONING_MODELS.includes(selectedModel) && (
+            <span
+              className="bg-purple-700 text-white text-[8px] px-1 rounded"
+              title="This model has reasoning capabilities"
+            >
+              R
+            </span>
+          )}
         </span>
       </div>
 
@@ -173,30 +518,43 @@ const ModelSelector = () => {
           </div>
 
           <div className="max-h-64 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-600 scrollbar-track-gray-800">
-            {filteredModels.map((model) => (
-              <div
-                key={model}
-                onClick={() => handleModelSelect(model)}
-                className={`p-2 text-xs cursor-pointer hover:bg-gray-700 ${
-                  selectedModel === model
-                    ? "bg-blue-600 text-white"
-                    : "text-white"
-                } flex justify-between items-center`}
-              >
-                <span className="truncate">{model}</span>
-                {selectedModel === model && (
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="12"
-                    height="12"
-                    fill="currentColor"
-                    viewBox="0 0 16 16"
-                  >
-                    <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0" />
-                  </svg>
-                )}
-              </div>
-            ))}
+            {filteredModels.map((model) => {
+              const hasReasoning = REASONING_MODELS.includes(model);
+              return (
+                <div
+                  key={model}
+                  onClick={() => handleModelSelect(model)}
+                  className={`p-2 text-xs cursor-pointer hover:bg-gray-700 ${
+                    selectedModel === model
+                      ? "bg-blue-600 text-white"
+                      : "text-white"
+                  } flex justify-between items-center`}
+                >
+                  <span className="truncate flex items-center gap-1">
+                    {model}
+                    {hasReasoning && (
+                      <span
+                        className="bg-purple-700 text-white text-[9px] px-1 rounded"
+                        title="This model has reasoning capabilities"
+                      >
+                        REASONING
+                      </span>
+                    )}
+                  </span>
+                  {selectedModel === model && (
+                    <svg
+                      xmlns="http://www.w3.org/2000/svg"
+                      width="12"
+                      height="12"
+                      fill="currentColor"
+                      viewBox="0 0 16 16"
+                    >
+                      <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0" />
+                    </svg>
+                  )}
+                </div>
+              );
+            })}
 
             {filteredModels.length === 0 && (
               <div className="p-4 text-xs text-gray-400 text-center">

@@ -19,4 +19,5 @@ interface ResponseMessage {
   content: string;
   refusal: string | null;
   annotations: Record<string, unknown>[];
+  reasoning?: string;
 }
