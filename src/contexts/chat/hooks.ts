@@ -30,7 +30,12 @@ export function useInputValue() {
   return state.inputValue;
 }
 
+export function useSelectedModel() {
+  const { state } = useChat();
+  return state.selectedModel;
+}
+
 export function useChatActions() {
-  const { sendMessage, clearChat, setInputValue } = useChat();
-  return { sendMessage, clearChat, setInputValue };
+  const { sendMessage, clearChat, setInputValue, setModel } = useChat();
+  return { sendMessage, clearChat, setInputValue, setModel };
 }

@@ -9,6 +9,7 @@ interface ChatState {
   showWelcomeMessage: boolean;
   isLoading: boolean;
   inputValue: string;
+  selectedModel: string;
 }
 
 type ChatAction =
@@ -17,6 +18,7 @@ type ChatAction =
   | { type: "HIDE_WELCOME" }
   | { type: "SET_LOADING"; payload: boolean }
   | { type: "CLEAR_MESSAGES" }
+  | { type: "SET_MODEL"; payload: string }
   | {
       type: "UPDATE_STREAMING_MESSAGE";
       payload: { id: string; content: string };
@@ -27,6 +29,7 @@ export const initialState: ChatState = {
   showWelcomeMessage: true,
   isLoading: false,
   inputValue: "",
+  selectedModel: "gpt-5-nano", // Default model
 };
 
 // Reducer
@@ -69,6 +72,11 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         showWelcomeMessage: true,
         inputValue: "",
       };
+    case "SET_MODEL":
+      return {
+        ...state,
+        selectedModel: action.payload,
+      };
     default:
       return state;
   }
@@ -81,6 +89,7 @@ export interface ChatContextType {
   sendMessage: (content: string) => void;
   clearChat: () => void;
   setInputValue: (value: string) => void;
+  setModel: (model: string) => void;
   puterState?: {
     puter: Puter | null;
     isLoading: boolean;

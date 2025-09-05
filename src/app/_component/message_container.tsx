@@ -5,6 +5,7 @@ import {
 } from "@/contexts/chat/hooks";
 import { cn } from "@/utils/taildwind_helper";
 import FormattedMessage from "./_message-container-comp/formatted_message";
+import RegenerateButton from "./_message-container-comp/regenerate_button";
 import WelcomeMessage from "./_message-container-comp/welcome_message";
 
 const MessageContainer = () => {
@@ -41,6 +42,16 @@ const MessageContainer = () => {
               msg.role === "assistant" &&
               !msg.content;
 
+            // Find previous user message for regenerate button
+            const prevUserMessage =
+              msg.role === "assistant" && index > 0
+                ? messages[index - 1]
+                : null;
+            const showRegenerateButton =
+              msg.role === "assistant" &&
+              !shouldShowLoading &&
+              prevUserMessage?.role === "user";
+
             return (
               <div
                 key={msg.id}
@@ -48,22 +59,29 @@ const MessageContainer = () => {
                   msg.role === "user" ? "justify-end" : "justify-start"
                 }`}
               >
-                <div
-                  className={cn(
-                    "px-2 py-1 rounded-lg max-w-5xl w-auto inline-block",
-                    msg.role === "user"
-                      ? "bg-blue-600 rounded-br-none"
-                      : shouldShowLoading
-                      ? "bg-transparent rounded-bl-none"
-                      : "bg-gray-800 rounded-bl-none"
-                  )}
-                >
-                  {shouldShowLoading ? (
-                    <div className="flex items-center justify-center p-0 m-0">
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                <div className="flex flex-col">
+                  <div
+                    className={cn(
+                      "px-2 py-1 rounded-lg max-w-5xl w-auto inline-block",
+                      msg.role === "user"
+                        ? "bg-blue-600 rounded-br-none"
+                        : shouldShowLoading
+                        ? "bg-transparent rounded-bl-none"
+                        : "bg-gray-800 rounded-bl-none"
+                    )}
+                  >
+                    {shouldShowLoading ? (
+                      <div className="flex items-center justify-center p-0 m-0">
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      </div>
+                    ) : (
+                      <FormattedMessage content={msg.content} />
+                    )}
+                  </div>
+                  {showRegenerateButton && (
+                    <div className="flex justify-end">
+                      <RegenerateButton previousMessage={prevUserMessage} />
                     </div>
-                  ) : (
-                    <FormattedMessage content={msg.content} />
                   )}
                 </div>
               </div>

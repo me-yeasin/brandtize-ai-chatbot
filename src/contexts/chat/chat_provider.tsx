@@ -5,6 +5,7 @@ import {
   initialState,
 } from "@/contexts/chat/chat_context";
 import { usePuter } from "@/hooks/puter/usePuter"; // Import your Puter hook
+import { usePuterAuth } from "@/hooks/puter/usePuterAuth"; // Import your Puter hook
 // AiResponse typing intentionally omitted — responses can be many shapes; handle as unknown/iterable
 import { Message } from "@/models/message";
 import { ReactNode, useEffect, useReducer, useRef } from "react";
@@ -14,8 +15,27 @@ interface ChatProviderProps {
 }
 
 export function ChatProvider({ children }: ChatProviderProps) {
+  // Initialize with default state
   const [state, dispatch] = useReducer(chatReducer, initialState);
+
+  // Load saved model from localStorage on client-side only
+  useEffect(() => {
+    try {
+      const savedModel =
+        typeof window !== "undefined"
+          ? localStorage.getItem("selectedAIModel")
+          : null;
+
+      if (savedModel) {
+        dispatch({ type: "SET_MODEL", payload: savedModel });
+      }
+    } catch (error) {
+      console.error("Error accessing localStorage:", error);
+    }
+    // We only want this effect to run once on initial client-side render
+  }, []);
   const { puter, isLoading: puterLoading, error: puterError } = usePuter();
+  const { user } = usePuterAuth();
 
   // Ref to track streaming
   const streamingRef = useRef<{
@@ -32,7 +52,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
 
   const sendMessage = async (content: string) => {
     if (!content.trim() || !puter) return;
-
+    console.log(user);
     // Clear any existing streaming
     streamingRef.current = { messageId: null, isStreaming: false };
 
@@ -134,11 +154,12 @@ export function ChatProvider({ children }: ChatProviderProps) {
       const maybeStream = puter.ai.chat(
         content,
         {
-          model: "openrouter:z-ai/glm-4.5",
+          model: state.selectedModel, // Use the selected model from state
           stream: true,
         },
-        true
+        false
       );
+      console.log(maybeStream);
 
       // Support promise or direct stream-like return without using `any`
       const stream =
@@ -147,10 +168,9 @@ export function ChatProvider({ children }: ChatProviderProps) {
           ? await (maybeStream as Promise<unknown>)
           : (maybeStream as unknown);
       // Skip logging for performance gain
-
+      console.log("Puter AI chat called with streaming enabled");
       // Optimized streaming handler with prioritized fast paths
       const maybeIterable = stream as unknown;
-
       let handled = false;
 
       try {
@@ -239,7 +259,8 @@ export function ChatProvider({ children }: ChatProviderProps) {
             )
           );
         }
-      } catch {
+      } catch (e) {
+        console.log(e);
         // Skip error logging for faster fallback
       }
 
@@ -279,7 +300,8 @@ export function ChatProvider({ children }: ChatProviderProps) {
         payload: { id: aiMessageId, content: fullContent },
       });
       dispatch({ type: "SET_LOADING", payload: false });
-    } catch {
+    } catch (e) {
+      console.log("Error during AI chat streaming:", e);
       // Skip error logging for faster recovery
 
       // Immediately update UI with error message and reset state in one batch
@@ -306,12 +328,25 @@ export function ChatProvider({ children }: ChatProviderProps) {
     dispatch({ type: "SET_INPUT_VALUE", payload: value });
   };
 
+  const setModel = (model: string) => {
+    // Save to localStorage before dispatching the action (safely)
+    try {
+      if (typeof window !== "undefined") {
+        localStorage.setItem("selectedAIModel", model);
+      }
+    } catch (error) {
+      console.error("Error saving to localStorage:", error);
+    }
+    dispatch({ type: "SET_MODEL", payload: model });
+  };
+
   const value: ChatContextType = {
     state,
     dispatch,
     sendMessage,
     clearChat,
     setInputValue,
+    setModel,
     puterState: { puter, isLoading: puterLoading, error: puterError }, // Optional: expose Puter state
   };
 

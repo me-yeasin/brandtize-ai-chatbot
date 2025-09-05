@@ -1,5 +1,6 @@
 import AttachIcon from "@/assets/icons/attach";
 import VoiceIcon from "@/assets/icons/voice";
+import ModelSelector from "./_input-area-comp/model_selector";
 import TextEditorWithBtn from "./_input-area-comp/texteditor_with_btn";
 import ToolBtn from "./_input-area-comp/tool_btn";
 
@@ -17,6 +18,7 @@ const InputArea = () => {
             <ToolBtn label="Voice">
               <VoiceIcon />
             </ToolBtn>
+            <ModelSelector />
           </div>
           <div>AI may produce inaccurate information</div>
         </div>
