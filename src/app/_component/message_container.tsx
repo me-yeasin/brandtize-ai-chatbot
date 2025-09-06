@@ -4,8 +4,10 @@ import {
   useShowWelcome,
 } from "@/contexts/chat/hooks";
 import { cn } from "@/utils/taildwind_helper";
+import CopyButton from "./_message-container-comp/copy_button";
 import FormattedMessage from "./_message-container-comp/formatted_message";
 import MessageWithFile from "./_message-container-comp/message_with_file";
+import ModelDropdownButton from "./_message-container-comp/model_dropdown_button";
 import RegenerateButton from "./_message-container-comp/regenerate_button";
 import WelcomeMessage from "./_message-container-comp/welcome_message";
 
@@ -87,7 +89,13 @@ const MessageContainer = () => {
                   </div>
                   {showRegenerateButton && (
                     <div className="flex justify-end">
-                      <RegenerateButton previousMessage={prevUserMessage} />
+                      <div className="flex items-center">
+                        <RegenerateButton previousMessage={prevUserMessage} />
+                        <CopyButton message={msg} />
+                        <ModelDropdownButton
+                          previousMessage={prevUserMessage}
+                        />
+                      </div>
                     </div>
                   )}
                 </div>
