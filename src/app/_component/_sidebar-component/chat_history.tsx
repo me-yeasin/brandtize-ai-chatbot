@@ -12,21 +12,38 @@ const ChatHistory = () => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const { loadConversation, currentConversation } = useChat();
 
-  useEffect(() => {
-    const fetchConversations = async () => {
-      try {
-        const response = await fetch("/api/conversations");
-        if (response.ok) {
-          const data = await response.json();
-          setConversations(data);
-        }
-      } catch (error) {
-        console.error("Error fetching conversations:", error);
+  // Function to fetch conversations
+  const fetchConversations = async () => {
+    try {
+      console.log("Fetching conversations for sidebar...");
+      const response = await fetch("/api/conversations");
+      if (response.ok) {
+        const data = await response.json();
+        setConversations(data);
+        console.log(`Loaded ${data.length} conversations`);
       }
-    };
+    } catch (error) {
+      console.error("Error fetching conversations:", error);
+    }
+  };
 
+  // Load conversations on initial mount
+  useEffect(() => {
     fetchConversations();
   }, []);
+
+  // Listen for the CONVERSATION_UPDATED action
+  // This will be triggered after the first AI response is saved
+  useEffect(() => {
+    // We're watching for specific state changes that indicate a conversation update
+    if (currentConversation) {
+      console.log(
+        "Current conversation changed, refreshing sidebar:",
+        currentConversation
+      );
+      fetchConversations();
+    }
+  }, [currentConversation]);
 
   // Group conversations by date
   const groupedConversations = conversations.reduce(

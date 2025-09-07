@@ -123,12 +123,13 @@ export function ChatProvider({ children }: ChatProviderProps) {
           }
 
           const data = await response.json();
-          // Store the ID for immediate use AND update React state
+          // Store the ID for immediate use but DON'T update React state yet
+          // We'll update the state after the first AI response is saved
           currentConversationId = data._id;
-          setCurrentConversation(data._id);
           console.log(
             "New conversation created and user message saved, ID:",
-            data._id
+            data._id,
+            "(not showing in sidebar until AI response is saved)"
           );
           return { success: true, conversationId: data._id };
         } catch (error) {
@@ -842,7 +843,18 @@ export function ChatProvider({ children }: ChatProviderProps) {
 
         // Execute save operation in the background
         saveAIMessage().then((success) => {
-          if (!success) {
+          if (success) {
+            // After successfully saving the AI message, make the conversation "official"
+            // by updating state and triggering a UI refresh
+            if (conversationIdToUse) {
+              // Update the React state to make the conversation visible in the UI
+              setCurrentConversation(conversationIdToUse);
+
+              // The refreshConversations call will trigger sidebar updates
+              // This only needs to happen once - when the conversation first becomes visible
+              refreshConversations();
+            }
+          } else {
             console.error("Failed to save AI message after all retries");
           }
         });
@@ -946,6 +958,21 @@ export function ChatProvider({ children }: ChatProviderProps) {
     setCurrentConversation(null);
   };
 
+  const refreshConversations = () => {
+    // This function will be called after the first AI response is saved to the database
+    // It dispatches an action that will trigger a UI refresh for components watching this state
+    console.log("Triggering conversation refresh for UI components");
+
+    // A shorter delay is sufficient since we're just updating React state
+    // The actual database operations are already complete by this point
+    setTimeout(() => {
+      dispatch({
+        type: "CONVERSATION_UPDATED",
+        payload: new Date().toISOString(),
+      });
+    }, 300);
+  };
+
   const value: ChatContextType = {
     state,
     dispatch,
@@ -953,9 +980,10 @@ export function ChatProvider({ children }: ChatProviderProps) {
     clearChat,
     setInputValue,
     setModel,
-    loadConversation, // Add this
-    newChat, // Add this
-    currentConversation, // Add this
+    loadConversation,
+    newChat,
+    refreshConversations,
+    currentConversation,
     puterState: { puter, isLoading: puterLoading, error: puterError }, // Optional: expose Puter state
   };
 

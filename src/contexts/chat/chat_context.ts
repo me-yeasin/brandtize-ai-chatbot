@@ -10,6 +10,7 @@ interface ChatState {
   isLoading: boolean;
   inputValue: string;
   selectedModel: string;
+  _lastRefresh?: string; // Timestamp of last conversation refresh
 }
 
 type ChatAction =
@@ -19,6 +20,7 @@ type ChatAction =
   | { type: "SET_LOADING"; payload: boolean }
   | { type: "CLEAR_MESSAGES" }
   | { type: "SET_MODEL"; payload: string }
+  | { type: "CONVERSATION_UPDATED"; payload: string } // New action to trigger conversation refresh
   | {
       type: "UPDATE_STREAMING_MESSAGE";
       payload: { id: string; content: string; reasoning?: string };
@@ -88,6 +90,16 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         ...state,
         selectedModel: action.payload,
       };
+    case "CONVERSATION_UPDATED":
+      // This case is specifically to trigger rerenders for components
+      // that need to refresh when conversations change
+      console.log("Conversation updated at:", action.payload);
+      return {
+        ...state,
+        // We add a dummy field that won't affect functionality but ensures
+        // a new state object is created to trigger rerenders
+        _lastRefresh: action.payload,
+      };
     default:
       return state;
   }
@@ -104,9 +116,10 @@ export interface ChatContextType {
   clearChat: () => void;
   setInputValue: (value: string) => void;
   setModel: (model: string) => void;
-  loadConversation: (conversationId: string) => void; // New
-  newChat: () => void; // New
-  currentConversation: string | null; // New
+  loadConversation: (conversationId: string) => void;
+  newChat: () => void;
+  refreshConversations: () => void; // New function to refresh the conversation list
+  currentConversation: string | null;
   puterState?: {
     puter: Puter | null;
     isLoading: boolean;
