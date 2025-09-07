@@ -8,7 +8,7 @@ import { usePuter } from "@/hooks/puter/usePuter"; // Import your Puter hook
 import { usePuterAuth } from "@/hooks/puter/usePuterAuth"; // Import your Puter hook
 // AiResponse typing intentionally omitted — responses can be many shapes; handle as unknown/iterable
 import { Message } from "@/models/message";
-import { ReactNode, useEffect, useReducer, useRef } from "react";
+import { ReactNode, useEffect, useReducer, useRef, useState } from "react";
 
 interface ChatProviderProps {
   children: ReactNode;
@@ -17,6 +17,10 @@ interface ChatProviderProps {
 export function ChatProvider({ children }: ChatProviderProps) {
   // Initialize with default state
   const [state, dispatch] = useReducer(chatReducer, initialState);
+  // Add state for current conversation
+  const [currentConversation, setCurrentConversation] = useState<string | null>(
+    null
+  );
 
   // Load saved model from localStorage on client-side only
   useEffect(() => {
@@ -87,6 +91,101 @@ export function ChatProvider({ children }: ChatProviderProps) {
     dispatch({ type: "ADD_MESSAGE", payload: userMessage });
     dispatch({ type: "SET_LOADING", payload: true });
     dispatch({ type: "SET_INPUT_VALUE", payload: "" });
+
+    // Create a new conversation if we don't have one
+    // Track the conversation ID directly for immediate use
+    let currentConversationId = currentConversation;
+
+    const saveUserMessage = async (
+      retries = 3
+    ): Promise<{ success: boolean; conversationId: string | null }> => {
+      if (!currentConversationId) {
+        try {
+          // Create conversation with initial user message
+          const title =
+            content.length > 30 ? content.substring(0, 30) + "..." : content;
+          const response = await fetch("/api/conversations", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ title, initialMessage: userMessage }),
+          });
+
+          if (!response.ok) {
+            console.error(
+              `Failed to create conversation: ${response.status} ${response.statusText}`
+            );
+            if (retries > 0) {
+              console.log(`Retrying (${retries} attempts left)...`);
+              await new Promise((resolve) => setTimeout(resolve, 500)); // Wait 500ms before retry
+              return saveUserMessage(retries - 1);
+            }
+            return { success: false, conversationId: null };
+          }
+
+          const data = await response.json();
+          // Store the ID for immediate use AND update React state
+          currentConversationId = data._id;
+          setCurrentConversation(data._id);
+          console.log(
+            "New conversation created and user message saved, ID:",
+            data._id
+          );
+          return { success: true, conversationId: data._id };
+        } catch (error) {
+          console.error("Error creating conversation:", error);
+          if (retries > 0) {
+            console.log(`Retrying (${retries} attempts left)...`);
+            await new Promise((resolve) => setTimeout(resolve, 500)); // Wait 500ms before retry
+            return saveUserMessage(retries - 1);
+          }
+          return { success: false, conversationId: null };
+        }
+      } else {
+        // Add message to existing conversation
+        try {
+          const response = await fetch(
+            `/api/conversations/${currentConversationId}/messages`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(userMessage),
+            }
+          );
+
+          if (!response.ok) {
+            console.error(
+              `Failed to add message: ${response.status} ${response.statusText}`
+            );
+            if (retries > 0) {
+              console.log(`Retrying (${retries} attempts left)...`);
+              await new Promise((resolve) => setTimeout(resolve, 500)); // Wait 500ms before retry
+              return saveUserMessage(retries - 1);
+            }
+            return { success: false, conversationId: currentConversationId };
+          }
+
+          console.log("User message saved to existing conversation");
+          return { success: true, conversationId: currentConversationId };
+        } catch (error) {
+          console.error("Error adding message to conversation:", error);
+          if (retries > 0) {
+            console.log(`Retrying (${retries} attempts left)...`);
+            await new Promise((resolve) => setTimeout(resolve, 500)); // Wait 500ms before retry
+            return saveUserMessage(retries - 1);
+          }
+          return { success: false, conversationId: currentConversationId };
+        }
+      }
+    };
+
+    // Try to save the message and get the conversation ID
+    let savedConversationId: string | null = null;
+    const saveMessagePromise = saveUserMessage().then((result) => {
+      savedConversationId = result.conversationId;
+      if (!result.success) {
+        console.error("Failed to save user message after all retries");
+      }
+    });
 
     // Create AI message (empty content) so the UI shows the normal loading indicator while streaming begins
     const aiMessageId = (Date.now() + 1).toString();
@@ -686,6 +785,71 @@ export function ChatProvider({ children }: ChatProviderProps) {
         );
       }, 100);
 
+      // Store AI message in MongoDB with retries
+      // Wait for the user message to be saved first to get the conversation ID
+      await saveMessagePromise;
+
+      // Use the conversation ID we got from saving the user message, or fall back to currentConversation state
+      const conversationIdToUse = savedConversationId || currentConversation;
+
+      if (conversationIdToUse) {
+        console.log(
+          `Saving AI message to conversation: ${conversationIdToUse}`
+        );
+
+        const saveAIMessage = async (retries = 3): Promise<boolean> => {
+          try {
+            const response = await fetch(
+              `/api/conversations/${conversationIdToUse}/messages`,
+              {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  id: aiMessageId,
+                  role: "assistant",
+                  content: finalContent,
+                  timestamp: new Date(),
+                  reasoning: finalReasoning,
+                  hasReasoningCapability: supportsReasoning,
+                }),
+              }
+            );
+
+            if (!response.ok) {
+              console.error(
+                `Failed to store AI message: ${response.status} ${response.statusText}`
+              );
+              if (retries > 0) {
+                console.log(`Retrying (${retries} attempts left)...`);
+                await new Promise((resolve) => setTimeout(resolve, 500)); // Wait 500ms before retry
+                return saveAIMessage(retries - 1);
+              }
+              return false;
+            }
+
+            console.log("AI message successfully saved to MongoDB");
+            return true;
+          } catch (error) {
+            console.error("Error storing AI response in MongoDB:", error);
+            if (retries > 0) {
+              console.log(`Retrying (${retries} attempts left)...`);
+              await new Promise((resolve) => setTimeout(resolve, 500)); // Wait 500ms before retry
+              return saveAIMessage(retries - 1);
+            }
+            return false;
+          }
+        };
+
+        // Execute save operation in the background
+        saveAIMessage().then((success) => {
+          if (!success) {
+            console.error("Failed to save AI message after all retries");
+          }
+        });
+      } else {
+        console.error("No conversation ID available, can't save AI message");
+      }
+
       dispatch({ type: "SET_LOADING", payload: false });
     } catch (e) {
       console.log("Error during AI chat streaming:", e);
@@ -727,6 +891,61 @@ export function ChatProvider({ children }: ChatProviderProps) {
     dispatch({ type: "SET_MODEL", payload: model });
   };
 
+  // Add these new functions to the ChatProvider
+  const loadConversation = async (conversationId: string, retries = 3) => {
+    try {
+      dispatch({ type: "SET_LOADING", payload: true });
+      const response = await fetch(`/api/conversations/${conversationId}`);
+
+      if (!response.ok) {
+        console.error(
+          `Failed to load conversation: ${response.status} ${response.statusText}`
+        );
+        if (retries > 0) {
+          console.log(
+            `Retrying to load conversation (${retries} attempts left)...`
+          );
+          await new Promise((resolve) => setTimeout(resolve, 500)); // Wait 500ms before retry
+          return loadConversation(conversationId, retries - 1);
+        }
+        dispatch({ type: "SET_LOADING", payload: false });
+        return false;
+      }
+
+      const conversation = await response.json();
+
+      // Clear current messages
+      dispatch({ type: "CLEAR_MESSAGES" });
+
+      // Add each message from the conversation
+      conversation.messages.forEach((message: Message) => {
+        dispatch({ type: "ADD_MESSAGE", payload: message });
+      });
+
+      // Set current conversation
+      setCurrentConversation(conversationId);
+      dispatch({ type: "SET_LOADING", payload: false });
+      return true;
+    } catch (error) {
+      console.error("Error loading conversation:", error);
+
+      if (retries > 0) {
+        console.log(
+          `Retrying to load conversation (${retries} attempts left)...`
+        );
+        await new Promise((resolve) => setTimeout(resolve, 500)); // Wait 500ms before retry
+        return loadConversation(conversationId, retries - 1);
+      }
+
+      dispatch({ type: "SET_LOADING", payload: false });
+    }
+  };
+
+  const newChat = () => {
+    dispatch({ type: "CLEAR_MESSAGES" });
+    setCurrentConversation(null);
+  };
+
   const value: ChatContextType = {
     state,
     dispatch,
@@ -734,6 +953,9 @@ export function ChatProvider({ children }: ChatProviderProps) {
     clearChat,
     setInputValue,
     setModel,
+    loadConversation, // Add this
+    newChat, // Add this
+    currentConversation, // Add this
     puterState: { puter, isLoading: puterLoading, error: puterError }, // Optional: expose Puter state
   };
 

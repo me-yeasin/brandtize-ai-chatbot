@@ -104,6 +104,9 @@ export interface ChatContextType {
   clearChat: () => void;
   setInputValue: (value: string) => void;
   setModel: (model: string) => void;
+  loadConversation: (conversationId: string) => void; // New
+  newChat: () => void; // New
+  currentConversation: string | null; // New
   puterState?: {
     puter: Puter | null;
     isLoading: boolean;
