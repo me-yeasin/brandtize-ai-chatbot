@@ -25,9 +25,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <head>
-        <script src="https://js.puter.com/v2/" async></script>
-      </head>
+      <head>{/* Puter script is already loaded by PuterProvider */}</head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >

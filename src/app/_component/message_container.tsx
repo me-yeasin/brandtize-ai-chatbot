@@ -4,6 +4,7 @@ import {
   useShowWelcome,
 } from "@/contexts/chat/hooks";
 import { cn } from "@/utils/taildwind_helper";
+import { useEffect, useRef, useState } from "react";
 import CopyButton from "./_message-container-comp/copy_button";
 import FormattedMessage from "./_message-container-comp/formatted_message";
 import MessageWithFile from "./_message-container-comp/message_with_file";
@@ -15,14 +16,73 @@ const MessageContainer = () => {
   const messages = useMessages();
   const showWelcome = useShowWelcome();
   const isLoading = useIsLoading();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [userHasScrolled, setUserHasScrolled] = useState(false);
 
   // Optimize the computation for better performance
   const lastMessage =
     messages.length > 0 ? messages[messages.length - 1] : null;
   const isLastMessageLoading = isLoading && lastMessage?.role === "assistant";
 
+  // Handle auto-scrolling
+  useEffect(() => {
+    const scrollToBottom = () => {
+      if (containerRef.current && !userHasScrolled) {
+        containerRef.current.scrollTop = containerRef.current.scrollHeight;
+      }
+    };
+
+    // Scroll to bottom when new messages arrive or AI is typing
+    if (messages.length > 0 || isLoading) {
+      scrollToBottom();
+    }
+
+    // Set up an interval to handle continuous scrolling during AI response generation
+    let scrollInterval: NodeJS.Timeout | null = null;
+
+    if (isLastMessageLoading && !userHasScrolled) {
+      scrollInterval = setInterval(scrollToBottom, 500);
+    }
+
+    return () => {
+      if (scrollInterval) clearInterval(scrollInterval);
+    };
+  }, [messages, isLoading, isLastMessageLoading, userHasScrolled]);
+
+  // Handle user scroll interaction
+  useEffect(() => {
+    const handleUserScroll = () => {
+      if (!containerRef.current) return;
+
+      const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+      const isAtBottom = scrollHeight - scrollTop - clientHeight < 50;
+
+      // If user scrolled away from bottom, mark as user-scrolled
+      if (!isAtBottom && isLastMessageLoading) {
+        setUserHasScrolled(true);
+      }
+
+      // If user scrolled back to bottom, allow auto-scrolling again
+      if (isAtBottom) {
+        setUserHasScrolled(false);
+      }
+    };
+
+    const container = containerRef.current;
+    if (container) {
+      container.addEventListener("scroll", handleUserScroll);
+    }
+
+    return () => {
+      if (container) {
+        container.removeEventListener("scroll", handleUserScroll);
+      }
+    };
+  }, [isLastMessageLoading]);
+
   return (
     <div
+      ref={containerRef}
       className={cn(
         "flex-1 overflow-y-auto bg-black h-full w-full",
         showWelcome && "flex items-center justify-center"
@@ -74,8 +134,28 @@ const MessageContainer = () => {
                     )}
                   >
                     {shouldShowLoading ? (
-                      <div className="flex items-center justify-center p-0 m-0">
-                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <div className="flex items-center space-x-1">
+                        {/* Dot 1 */}
+                        <div className="relative flex h-3 w-3">
+                          <div className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gray-400 opacity-75"></div>
+                          <div className="relative inline-flex rounded-full h-3 w-3 bg-gray-500"></div>
+                        </div>
+                        {/* Dot 2 */}
+                        <div className="relative flex h-3 w-3">
+                          <div
+                            className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gray-400 opacity-75"
+                            style={{ animationDelay: "150ms" }}
+                          ></div>
+                          <div className="relative inline-flex rounded-full h-3 w-3 bg-gray-500"></div>
+                        </div>
+                        {/* Dot 3 */}
+                        <div className="relative flex h-3 w-3">
+                          <div
+                            className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gray-400 opacity-75"
+                            style={{ animationDelay: "300ms" }}
+                          ></div>
+                          <div className="relative inline-flex rounded-full h-3 w-3 bg-gray-500"></div>
+                        </div>
                       </div>
                     ) : msg.file ? (
                       <MessageWithFile content={msg.content} file={msg.file} />
