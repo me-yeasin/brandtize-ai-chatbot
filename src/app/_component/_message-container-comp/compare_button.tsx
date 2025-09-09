@@ -2,10 +2,13 @@
 
 import { useChat } from "@/contexts/chat/hooks";
 import { Message } from "@/models/message";
+import { WebSearchData } from "@/models/search";
 import { AI_MODELS } from "@/utils/model_lists";
 import { useEffect, useRef, useState } from "react";
 import "./custom_scrollbar.css";
 import FormattedMessage from "./formatted_message";
+import LoadingIndicatorWithMessage from "./loading_indicator_with_message";
+import "./search_results.css";
 
 interface CompareButtonProps {
   message: Message; // The AI message to compare
@@ -113,13 +116,87 @@ const CompareButton = ({ message, previousMessage }: CompareButtonProps) => {
   // Function to generate real API response for a specific model
   const generateRealResponse = async (
     selectedModel: string,
-    userPrompt: string
+    userPrompt: string,
+    useWebSearch: boolean = false
   ): Promise<Message> => {
     if (!puter) {
       throw new Error("Puter AI service not available");
     }
 
     try {
+      // Variables for web search
+      let webSearchData: WebSearchData | undefined = undefined;
+      let finalPrompt = userPrompt;
+
+      // Perform web search if enabled
+      if (useWebSearch) {
+        try {
+          console.log("Compare Dialog: Performing web search for:", userPrompt);
+
+          // Check if this looks like a specific website browsing request
+          const websiteRegex =
+            /(?:browse|visit|check|fetch|get|search|get data from|data from|information from|content from|read|view|go to)\s+(?:the\s+)?(?:website|webpage|page|site|url|link)?\s*(?:at|from|on|of|:)?\s*(?:https?:\/\/)?([a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9](?:\.[a-zA-Z]{2,})+(?:\/\S*)?)/i;
+
+          const isWebsiteRequest = websiteRegex.test(userPrompt);
+          if (isWebsiteRequest) {
+            console.log("CompareDialog: Detected website browsing request");
+          }
+
+          const searchResponse = await fetch(
+            `/api/search?q=${encodeURIComponent(userPrompt)}`
+          );
+
+          if (searchResponse.ok) {
+            webSearchData = await searchResponse.json();
+
+            if (
+              webSearchData &&
+              webSearchData.results &&
+              webSearchData.results.length > 0
+            ) {
+              // Format search results for the AI prompt
+              const formattedResults = webSearchData.results
+                .map(
+                  (result, index) =>
+                    `[${index + 1}] "${result.title}": ${result.snippet} (${
+                      result.link
+                    })`
+                )
+                .join("\n");
+
+              // Check if this is a specific website request
+              const isSpecificWebsite = webSearchData.queries.some((q) =>
+                q.query.startsWith("Fetching data from:")
+              );
+
+              // Extract website URL if this is a specific website request
+              let websiteUrl = "";
+              if (isSpecificWebsite) {
+                const fetchQuery = webSearchData.queries.find((q) =>
+                  q.query.startsWith("Fetching data from:")
+                );
+                if (fetchQuery) {
+                  websiteUrl = fetchQuery.query.replace(
+                    "Fetching data from: ",
+                    ""
+                  );
+                }
+              }
+
+              // Set the enhanced prompt based on the type of search
+              finalPrompt = isSpecificWebsite
+                ? `${userPrompt}\n\nWebsite content results from ${websiteUrl}:\n${formattedResults}\n\nI've fetched data from the specific website you requested. Please use this information to provide an accurate and detailed answer based on the website content. Cite sources when appropriate using their numbers like [1], [2], etc.`
+                : `${userPrompt}\n\nWeb search results:\n${formattedResults}\n\nPlease use these search results to provide an up-to-date and accurate answer. Cite the sources in your response by referring to their numbers like [1], [2], etc. If the search results aren't relevant, rely on your training data.`;
+            }
+          }
+        } catch (error) {
+          console.error(
+            "Error performing web search in compare dialog:",
+            error
+          );
+        }
+      }
+
       // Check if the selected model supports reasoning
       const supportsReasoning = [
         "deepseek-reasoner",
@@ -137,9 +214,9 @@ const CompareButton = ({ message, previousMessage }: CompareButtonProps) => {
       ].some((model) => selectedModel.includes(model));
 
       // Enhanced prompt for reasoning-capable models
-      let enhancedPrompt = userPrompt;
-      if (supportsReasoning) {
-        enhancedPrompt = `${userPrompt}\n\nNote: Please respond in English. For this response, first think step-by-step about how to answer this question (this thinking won't be shown to the user), and then provide your final answer.`;
+      let enhancedPrompt = finalPrompt;
+      if (supportsReasoning && !useWebSearch) {
+        enhancedPrompt = `${finalPrompt}\n\nNote: Please respond in English. For this response, first think step-by-step about how to answer this question (this thinking won't be shown to the user), and then provide your final answer.`;
       }
 
       const maybeStream = puter.ai.chat(
@@ -147,17 +224,8 @@ const CompareButton = ({ message, previousMessage }: CompareButtonProps) => {
         {
           model: selectedModel,
           stream: true,
-          ...(supportsReasoning && {
-            additional_parameters: {
-              show_reasoning: true,
-              include_reasoning: true,
-              include_thinking: true,
-              thinking: true,
-              reasoning: true,
-            },
-          }),
         },
-        true
+        false
       );
 
       // Handle the response (same logic as in chat_provider.tsx)
@@ -190,13 +258,18 @@ const CompareButton = ({ message, previousMessage }: CompareButtonProps) => {
         if (typeof chunk === "object") {
           const obj = chunk as Record<string, unknown>;
 
-          // Check for reasoning fields
+          // Check for reasoning fields (expanded for different models)
           let foundReasoning: string | undefined;
           const reasoningFields = [
             "reasoning",
             "thinking",
             "thought_process",
             "thoughts",
+            "internal_thoughts",
+            "step_by_step",
+            "analysis",
+            "chain_of_thought",
+            "rationale",
           ];
 
           for (const field of reasoningFields) {
@@ -345,6 +418,7 @@ const CompareButton = ({ message, previousMessage }: CompareButtonProps) => {
         timestamp: new Date(),
         reasoning: reasoning,
         hasReasoningCapability: supportsReasoning,
+        webSearchData: useWebSearch ? webSearchData : undefined,
       };
     } catch (error) {
       console.error(`Error generating response for ${selectedModel}:`, error);
@@ -466,7 +540,8 @@ const CompareButton = ({ message, previousMessage }: CompareButtonProps) => {
           // Generate real response using the API
           const realResponse = await generateRealResponse(
             item.model,
-            editedContent
+            editedContent,
+            useWebSearch
           );
 
           // Update the specific response
@@ -541,6 +616,7 @@ const CompareButton = ({ message, previousMessage }: CompareButtonProps) => {
   const [isButtonActive, setIsButtonActive] = useState(false);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState(AI_MODELS[0]);
+  const [useWebSearch, setUseWebSearch] = useState(false);
   const [alternativeResponses, setAlternativeResponses] = useState<
     Array<{ model: string; response: Message | null; isLoading: boolean }>
   >([]);
@@ -712,6 +788,22 @@ const CompareButton = ({ message, previousMessage }: CompareButtonProps) => {
                   Compare View With
                 </h2>
 
+                {/* Web Search Toggle */}
+                <div className="flex items-center">
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      className="sr-only peer"
+                      checked={useWebSearch}
+                      onChange={() => setUseWebSearch(!useWebSearch)}
+                    />
+                    <div className="w-11 h-6 bg-gray-700 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-blue-500 rounded-full peer peer-checked:after:translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                    <span className="ms-3 text-sm font-medium text-white">
+                      Web Search
+                    </span>
+                  </label>
+                </div>
+
                 {/* Model Dropdown */}
                 <div className="relative">
                   <button
@@ -789,7 +881,8 @@ const CompareButton = ({ message, previousMessage }: CompareButtonProps) => {
                                     const realResponse =
                                       await generateRealResponse(
                                         model,
-                                        userQuestion
+                                        userQuestion,
+                                        useWebSearch
                                       );
 
                                     // Update the response in the array and then save to database
@@ -1036,6 +1129,7 @@ const CompareButton = ({ message, previousMessage }: CompareButtonProps) => {
                           hasReasoningCapability={
                             message.hasReasoningCapability
                           }
+                          webSearchData={message.webSearchData}
                         />
                       </div>
                     </div>
@@ -1134,26 +1228,10 @@ const CompareButton = ({ message, previousMessage }: CompareButtonProps) => {
                         </div>
                         <div className="bg-gray-800 rounded-lg rounded-bl-none px-2 py-1 custom-scrollbar">
                           {item.isLoading ? (
-                            <div className="flex items-center space-x-1 p-2">
-                              {/* Animated loading dots */}
-                              <div className="relative flex h-3 w-3">
-                                <div className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gray-400 opacity-75"></div>
-                                <div className="relative inline-flex rounded-full h-3 w-3 bg-gray-500"></div>
-                              </div>
-                              <div className="relative flex h-3 w-3">
-                                <div
-                                  className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gray-400 opacity-75"
-                                  style={{ animationDelay: "150ms" }}
-                                ></div>
-                                <div className="relative inline-flex rounded-full h-3 w-3 bg-gray-500"></div>
-                              </div>
-                              <div className="relative flex h-3 w-3">
-                                <div
-                                  className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gray-400 opacity-75"
-                                  style={{ animationDelay: "300ms" }}
-                                ></div>
-                                <div className="relative inline-flex rounded-full h-3 w-3 bg-gray-500"></div>
-                              </div>
+                            <div className="p-2">
+                              <LoadingIndicatorWithMessage
+                                webSearchData={item.response?.webSearchData}
+                              />
                             </div>
                           ) : (
                             item.response && (
@@ -1163,6 +1241,7 @@ const CompareButton = ({ message, previousMessage }: CompareButtonProps) => {
                                 hasReasoningCapability={
                                   item.response.hasReasoningCapability
                                 }
+                                webSearchData={item.response.webSearchData}
                               />
                             )
                           )}

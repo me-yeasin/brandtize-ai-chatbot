@@ -5,6 +5,7 @@ import "highlight.js/styles/atom-one-dark.css";
 import { marked } from "marked";
 import { useEffect, useRef, useState } from "react";
 import "./markdown.css";
+import WebSearchDisplay from "./web_search_display";
 
 interface FormattedMessageProps {
   content: string;
@@ -15,6 +16,20 @@ interface FormattedMessageProps {
   };
   reasoning?: string;
   hasReasoningCapability?: boolean; // Flag to indicate if the model supports reasoning
+  webSearchData?: {
+    queries: Array<{
+      id: string;
+      query: string;
+      timestamp: string;
+    }>;
+    results: Array<{
+      title: string;
+      snippet: string;
+      link: string;
+      source: string;
+      timestamp: string;
+    }>;
+  };
 }
 
 // Use a WeakMap to store delegated click handlers for each container node.
@@ -24,6 +39,7 @@ const FormattedMessage = ({
   content,
   reasoning,
   hasReasoningCapability,
+  webSearchData,
 }: FormattedMessageProps) => {
   const messageRef = useRef<HTMLDivElement>(null);
   const [copyStates, setCopyStates] = useState<Record<string, boolean>>({});
@@ -252,6 +268,13 @@ const FormattedMessage = ({
         ref={messageRef}
         className="markdown-content text-white break-words"
       />
+
+      {/* Display web search data if available */}
+      {webSearchData &&
+        webSearchData.results &&
+        webSearchData.results.length > 0 && (
+          <WebSearchDisplay searchData={webSearchData} />
+        )}
 
       {/* Show reasoning toggle if reasoning is available or the model has reasoning capabilities */}
       {((reasoning && reasoning.trim() !== "") || hasReasoningCapability) && (

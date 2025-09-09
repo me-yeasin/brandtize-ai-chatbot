@@ -8,6 +8,7 @@ import { usePuter } from "@/hooks/puter/usePuter"; // Import your Puter hook
 import { usePuterAuth } from "@/hooks/puter/usePuterAuth"; // Import your Puter hook
 // AiResponse typing intentionally omitted — responses can be many shapes; handle as unknown/iterable
 import { Message } from "@/models/message";
+import { WebSearchData } from "@/models/search";
 import { ReactNode, useEffect, useReducer, useRef, useState } from "react";
 
 interface ChatProviderProps {
@@ -56,6 +57,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
 
   const sendMessage = async (
     content: string,
+    useWebSearch?: boolean,
     fileInfo?: { name: string; size: number; type: string }
   ) => {
     if (!content.trim() || !puter) return;
@@ -91,6 +93,78 @@ export function ChatProvider({ children }: ChatProviderProps) {
     dispatch({ type: "ADD_MESSAGE", payload: userMessage });
     dispatch({ type: "SET_LOADING", payload: true });
     dispatch({ type: "SET_INPUT_VALUE", payload: "" });
+
+    // Variables for web search
+    let webSearchData: WebSearchData | undefined = undefined;
+    let enhancedPrompt = content;
+
+    // Perform web search if enabled
+    if (useWebSearch) {
+      try {
+        console.log("ChatProvider: Performing web search for:", content);
+
+        // Check if this looks like a specific website browsing request
+        const websiteRegex =
+          /(?:browse|visit|check|fetch|get|search|get data from|data from|information from|content from|read|view|go to)\s+(?:the\s+)?(?:website|webpage|page|site|url|link)?\s*(?:at|from|on|of|:)?\s*(?:https?:\/\/)?([a-zA-Z0-9][a-zA-Z0-9-]{0,61}[a-zA-Z0-9](?:\.[a-zA-Z]{2,})+(?:\/\S*)?)/i;
+
+        const isWebsiteRequest = websiteRegex.test(content);
+        if (isWebsiteRequest) {
+          console.log("ChatProvider: Detected website browsing request");
+        }
+
+        const searchResponse = await fetch(
+          `/api/search?q=${encodeURIComponent(content)}`
+        );
+
+        if (searchResponse.ok) {
+          webSearchData = await searchResponse.json();
+
+          if (
+            webSearchData &&
+            webSearchData.results &&
+            webSearchData.results.length > 0
+          ) {
+            // Format search results for the AI prompt
+            const formattedResults = webSearchData.results
+              .map(
+                (result, index) =>
+                  `[${index + 1}] "${result.title}": ${result.snippet} (${
+                    result.link
+                  })`
+              )
+              .join("\n");
+
+            // Check if this is a specific website request
+            const isSpecificWebsite = webSearchData.queries.some((q) =>
+              q.query.startsWith("Fetching data from:")
+            );
+
+            console.log("Is specific website request:", isSpecificWebsite);
+
+            // Extract website URL if this is a specific website request
+            let websiteUrl = "";
+            if (isSpecificWebsite) {
+              const fetchQuery = webSearchData.queries.find((q) =>
+                q.query.startsWith("Fetching data from:")
+              );
+              if (fetchQuery) {
+                websiteUrl = fetchQuery.query.replace(
+                  "Fetching data from: ",
+                  ""
+                );
+              }
+            }
+
+            // Set the enhanced prompt based on the type of search
+            enhancedPrompt = isSpecificWebsite
+              ? `${content}\n\nWebsite content results from ${websiteUrl}:\n${formattedResults}\n\nI've fetched data from the specific website you requested. Please use this information to provide an accurate and detailed answer based on the website content. Cite sources when appropriate using their numbers like [1], [2], etc.`
+              : `${content}\n\nWeb search results:\n${formattedResults}\n\nPlease use these search results to provide an up-to-date and accurate answer. Cite the sources in your response by referring to their numbers like [1], [2], etc. If the search results aren't relevant, rely on your training data.`;
+          }
+        }
+      } catch (error) {
+        console.error("Error performing web search:", error);
+      }
+    }
 
     // Create a new conversation if we don't have one
     // Track the conversation ID directly for immediate use
@@ -196,6 +270,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
       content: "",
       timestamp: new Date(),
       hasReasoningCapability: supportsReasoning,
+      webSearchData: useWebSearch ? webSearchData : undefined,
     };
     dispatch({ type: "ADD_MESSAGE", payload: aiMessage });
 
@@ -209,21 +284,43 @@ export function ChatProvider({ children }: ChatProviderProps) {
       // Buffer for incoming chunks with optimized immediate display
       let fullContent = "";
 
-      // Optimized extraction with minimal type checking for speed
-      // Optimized content extraction with fewer try-catch blocks and early returns
+      // Log to track what's happening with the AI response
+      console.log(
+        "Starting AI response processing with model:",
+        state.selectedModel
+      );
+
+      // Special debugging for Qwen models
+      if (state.selectedModel.includes("qwen")) {
+        console.log(
+          "Processing Qwen reasoning model - enhanced debugging enabled"
+        );
+      } // Enhanced extraction with better chunk handling and debugging
       const extractChunkContent = (
         chunk: unknown
       ): { content: string; reasoning?: string } => {
+        // Log all chunks in non-test mode for debugging
+        console.log("Received chunk:", chunk);
+
         // Fast path for common cases
         if (!chunk) return { content: "" };
         if (typeof chunk === "string") return { content: chunk };
 
-        // Log chunk for debugging specific deepseek model
-        if (
-          typeof chunk === "object" &&
-          state.selectedModel.includes("deepseek")
-        ) {
-          console.log("Deepseek model chunk:", JSON.stringify(chunk, null, 2));
+        // Log chunk for debugging specific reasoning models
+        if (typeof chunk === "object" && supportsReasoning) {
+          if (state.selectedModel.includes("deepseek")) {
+            console.log(
+              "Deepseek model chunk:",
+              JSON.stringify(chunk, null, 2)
+            );
+          } else if (state.selectedModel.includes("qwen")) {
+            console.log("Qwen model chunk:", JSON.stringify(chunk, null, 2));
+          } else {
+            console.log(
+              "Reasoning model chunk:",
+              JSON.stringify(chunk, null, 2)
+            );
+          }
         }
 
         // Handle binary data with single TextDecoder instance
@@ -237,19 +334,34 @@ export function ChatProvider({ children }: ChatProviderProps) {
           return { content: dec.decode(new Uint8Array(chunk)) };
         }
 
-        // Handle object format - simplified with direct property access
-        if (typeof chunk === "object") {
+        // Handle object format with enhanced logging and property detection
+        if (typeof chunk === "object" && chunk !== null) {
           const obj = chunk as Record<string, unknown>;
+
+          // Log all object keys for better debugging
+          console.log("Object keys in chunk:", Object.keys(obj));
+
+          // Special handling for Puter AI response format
+          // The actual format might be different, log to see the structure
+          if (obj.data && typeof obj.data === "string") {
+            console.log("Found data property in chunk");
+            return { content: obj.data as string };
+          }
 
           // Check for reasoning in multiple possible fields
           let foundReasoning: string | undefined;
 
-          // Check common reasoning field names
+          // Check common reasoning field names (expanded for Qwen models)
           const reasoningFields = [
             "reasoning",
             "thinking",
             "thought_process",
             "thoughts",
+            "internal_thoughts", // Qwen specific
+            "step_by_step", // Qwen specific
+            "analysis", // Qwen specific
+            "chain_of_thought", // Common alternative
+            "rationale", // Common alternative
           ];
           for (const field of reasoningFields) {
             if (
@@ -331,12 +443,17 @@ export function ChatProvider({ children }: ChatProviderProps) {
         try {
           const jsonStr = JSON.stringify(chunk);
 
-          // Look for reasoning in JSON string
+          // Look for reasoning in JSON string with expanded patterns
           const reasoningPatterns = [
             /"reasoning":\s*"([^"]+)"/i,
             /"thinking":\s*"([^"]+)"/i,
             /"thought_process":\s*"([^"]+)"/i,
             /"thoughts":\s*"([^"]+)"/i,
+            /"internal_thoughts":\s*"([^"]+)"/i,
+            /"step_by_step":\s*"([^"]+)"/i,
+            /"analysis":\s*"([^"]+)"/i,
+            /"chain_of_thought":\s*"([^"]+)"/i,
+            /"rationale":\s*"([^"]+)"/i,
           ];
 
           for (const pattern of reasoningPatterns) {
@@ -358,8 +475,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
 
       // Optimized update function that directly updates the message without buffer delays
       const updateMessage = (data: { content: string; reasoning?: string }) => {
-        if (!data.content && !data.reasoning) return;
-
+        // Continue even with empty content - this ensures we update the UI
         // Add to full content
         fullContent += data.content || "";
 
@@ -450,6 +566,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
       // we can use a special prompt format to extract reasoning manually
       const needsManualReasoningExtraction =
         state.selectedModel.includes("deepseek") ||
+        state.selectedModel.includes("qwen") ||
         state.selectedModel.includes(
           "openrouter:deepseek-ai/deepseek-v2.5-reasoner"
         );
@@ -462,30 +579,43 @@ export function ChatProvider({ children }: ChatProviderProps) {
           // Format that makes it easier to parse reasoning and response separately
           enhancedPrompt = `Please respond to this request: "${content}"\n\nFirst, provide your reasoning using the following format:\n<reasoning>\nYour step-by-step reasoning process here...\n</reasoning>\n\nThen provide your final response using this format:\n<response>\nYour final response here...\n</response>`;
         } else {
-          // For models that handle reasoning natively
-          enhancedPrompt = `${content}\n\nNote: Please respond in English. For this response, first think step-by-step about how to answer this question (this thinking won't be shown to the user), and then provide your final answer.`;
+          // For models that handle reasoning natively - keep it simple to avoid API errors
+          enhancedPrompt = content;
         }
       }
 
+      // Use the enhanced prompt from web search if available
+      // Otherwise use the original content
+      const finalPrompt = useWebSearch ? enhancedPrompt : content;
+
+      console.log(
+        "Final prompt to be used:",
+        finalPrompt.substring(0, 100) + "..."
+      );
+
+      // Use test mode for development or real AI service for production
+      // You can toggle this to true for testing without real API calls
+      const useTestMode = false; // Set to false to use the real AI service
+
+      // Create minimal options object to avoid unsupported parameters
+      // Removed additional_parameters as they may cause API errors for reasoning models
+      const chatOptions = {
+        model: state.selectedModel, // Use the selected model from state
+        stream: true,
+      };
+
+      console.log("Calling puter.ai.chat with options:", chatOptions);
+      console.log("Final prompt length:", finalPrompt.length);
+      console.log("Is reasoning model:", supportsReasoning);
+
       // Immediately call puter.ai.chat for faster response
       const maybeStream = puter.ai.chat(
-        enhancedPrompt,
-        {
-          model: state.selectedModel, // Use the selected model from state
-          stream: true,
-          ...(supportsReasoning && {
-            additional_parameters: {
-              show_reasoning: true,
-              include_reasoning: true,
-              include_thinking: true,
-              thinking: true,
-              reasoning: true,
-            },
-          }),
-        },
-        true
+        finalPrompt,
+        chatOptions,
+        useTestMode // Control whether to use test mode or real API
       );
-      console.log("AI Response initial:", maybeStream);
+      console.log("AI Response initial call completed");
+      console.log("Response type:", typeof maybeStream);
 
       // Support promise or direct stream-like return without using `any`
       const stream =
@@ -602,28 +732,44 @@ export function ChatProvider({ children }: ChatProviderProps) {
           const r = response as Record<string, unknown>;
           console.log("Response keys:", Object.keys(r));
 
-          // Special handling for Deepseek models
-          if (state.selectedModel.includes("deepseek")) {
-            console.log("Processing Deepseek model response");
+          // Special handling for reasoning models (Deepseek, Qwen, etc.)
+          if (supportsReasoning) {
+            console.log(
+              "Processing reasoning model response for:",
+              state.selectedModel
+            );
+
+            // Extended list of reasoning fields for different model types
+            const reasoningFields = [
+              "thinking",
+              "reasoning",
+              "thought_process",
+              "thoughts",
+              "internal_thoughts",
+              "step_by_step",
+              "analysis",
+              "chain_of_thought",
+              "rationale",
+            ];
 
             // Try to find reasoning in various potential locations
-            if (r.thinking && typeof r.thinking === "string") {
-              reasoning = r.thinking as string;
-              console.log("Found reasoning in 'thinking' field");
-            } else if (
-              r.thought_process &&
-              typeof r.thought_process === "string"
-            ) {
-              reasoning = r.thought_process as string;
-              console.log("Found reasoning in 'thought_process' field");
-            } else if (r.reasoning && typeof r.reasoning === "string") {
-              reasoning = r.reasoning as string;
-              console.log("Found reasoning directly in response");
+            for (const field of reasoningFields) {
+              if (
+                r[field] &&
+                typeof r[field] === "string" &&
+                (r[field] as string).trim()
+              ) {
+                reasoning = r[field] as string;
+                console.log(`Found reasoning in '${field}' field`);
+                break;
+              }
             }
 
-            // Try common content patterns for deepseek
+            // Try common content patterns
             if (typeof r.response === "string") {
               responseContent = r.response as string;
+            } else if (typeof r.answer === "string") {
+              responseContent = r.answer as string;
             }
           }
 
@@ -647,20 +793,29 @@ export function ChatProvider({ children }: ChatProviderProps) {
                 console.log("Found content in message");
               }
 
-              // Check for reasoning field
+              // Check for reasoning field in nested message
               if (!reasoning) {
-                if (typeof message.reasoning === "string") {
-                  reasoning = message.reasoning as string;
-                  console.log(
-                    "Found reasoning in response message:",
-                    reasoning
-                  );
-                } else if (typeof message.thinking === "string") {
-                  reasoning = message.thinking as string;
-                  console.log("Found thinking in response message");
-                } else if (typeof message.thought_process === "string") {
-                  reasoning = message.thought_process as string;
-                  console.log("Found thought_process in response message");
+                const reasoningFields = [
+                  "reasoning",
+                  "thinking",
+                  "thought_process",
+                  "thoughts",
+                  "internal_thoughts",
+                  "step_by_step",
+                  "analysis",
+                  "chain_of_thought",
+                  "rationale",
+                ];
+
+                for (const field of reasoningFields) {
+                  if (
+                    typeof message[field] === "string" &&
+                    (message[field] as string).trim()
+                  ) {
+                    reasoning = message[field] as string;
+                    console.log(`Found reasoning in message.${field}`);
+                    break;
+                  }
                 }
               }
             }
@@ -745,10 +900,60 @@ export function ChatProvider({ children }: ChatProviderProps) {
 
       // For final update, check if we've manually extracted any reasoning
       const finalReasoning = manuallyExtractedReasoning || currentReasoning;
-      const finalContent =
+
+      // Make sure we have content, use a fallback if empty
+      let finalContent =
         needsManualReasoningExtraction && manualResponseContent
           ? manualResponseContent
           : fullContent;
+
+      console.log("Final content before fallback check:", finalContent);
+
+      // If content is still empty, try one more direct API call as a last resort
+      if (!finalContent || finalContent.trim() === "") {
+        console.log("Content is empty, trying direct API call as fallback");
+        try {
+          // Make a non-streaming API call as a last resort
+          // Use the enhanced prompt from web search if available, otherwise use original content
+          const fallbackPrompt = useWebSearch ? enhancedPrompt : content;
+          const directResponse = await puter.ai.chat(
+            fallbackPrompt,
+            {
+              model: state.selectedModel,
+              stream: false,
+            },
+            false
+          );
+
+          console.log("Direct API fallback response:", directResponse);
+
+          if (directResponse && typeof directResponse === "object") {
+            // Try to extract content from the direct response
+            const dr = directResponse as Record<string, unknown>;
+            if (typeof dr.content === "string") {
+              finalContent = dr.content as string;
+            } else if (dr.message && typeof dr.message === "object") {
+              const message = dr.message as Record<string, unknown>;
+              if (typeof message.content === "string") {
+                finalContent = message.content as string;
+              }
+            }
+          } else if (typeof directResponse === "string") {
+            finalContent = directResponse;
+          }
+        } catch (error) {
+          console.error("Error in direct API fallback:", error);
+        }
+      }
+
+      // If content is still empty after all attempts, provide a generic fallback
+      if (!finalContent || finalContent.trim() === "") {
+        finalContent =
+          "I'm sorry, I couldn't generate a proper response. Please try again or rephrase your question.";
+        console.log(
+          "Using generic fallback response due to empty content after all attempts"
+        );
+      }
 
       console.log(
         "Final message update - Reasoning available:",
@@ -812,6 +1017,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
                   timestamp: new Date(),
                   reasoning: finalReasoning,
                   hasReasoningCapability: supportsReasoning,
+                  webSearchData: useWebSearch ? webSearchData : undefined,
                 }),
               }
             );
@@ -864,12 +1070,75 @@ export function ChatProvider({ children }: ChatProviderProps) {
 
       dispatch({ type: "SET_LOADING", payload: false });
     } catch (e) {
-      console.log("Error during AI chat streaming:", e);
-      // Skip error logging for faster recovery
+      console.error("Error during AI chat streaming:", e);
 
-      // Immediately update UI with error message and reset state in one batch
-      const errorMessage =
+      // Log detailed error information for reasoning models debugging
+      console.error("Model:", state.selectedModel);
+      console.error("Supports reasoning:", supportsReasoning);
+      console.error(
+        "Enhanced prompt used:",
+        enhancedPrompt ? enhancedPrompt.substring(0, 100) : "N/A"
+      );
+
+      // Provide more specific error message based on the error type
+      let errorMessage =
         "I apologize, but I encountered an error. Please try again.";
+
+      if (e instanceof Error) {
+        console.error("Error message:", e.message);
+        console.error("Error stack:", e.stack);
+
+        // Check for common API errors
+        if (e.message.includes("model") || e.message.includes("Model")) {
+          errorMessage =
+            "The selected model is currently unavailable. Please try a different model.";
+        } else if (
+          e.message.includes("parameter") ||
+          e.message.includes("Parameter")
+        ) {
+          errorMessage =
+            "There was a configuration issue with the model. Please try again.";
+        } else if (
+          e.message.includes("timeout") ||
+          e.message.includes("Timeout")
+        ) {
+          errorMessage = "The request timed out. Please try again.";
+        }
+      }
+
+      // Handle Puter API error objects
+      if (
+        typeof e === "object" &&
+        e !== null &&
+        "success" in e &&
+        "error" in e
+      ) {
+        const puterError = e as {
+          success: boolean;
+          error: { code: string; message: string; status?: number };
+        };
+        console.error("Puter API Error:", puterError);
+
+        if (
+          puterError.error.code === "forbidden" ||
+          puterError.error.status === 403
+        ) {
+          errorMessage = `Access denied to model "${state.selectedModel}". This model may require special permissions or may not be available in your region. Please try a different model.`;
+        } else if (
+          puterError.error.code === "not_found" ||
+          puterError.error.status === 404
+        ) {
+          errorMessage = `Model "${state.selectedModel}" not found. Please select a different model.`;
+        } else if (
+          puterError.error.code === "rate_limit" ||
+          puterError.error.status === 429
+        ) {
+          errorMessage =
+            "Rate limit exceeded. Please wait a moment and try again.";
+        } else {
+          errorMessage = `API Error: ${puterError.error.message}`;
+        }
+      }
 
       // Batch updates for better performance
       streamingRef.current = { messageId: null, isStreaming: false };

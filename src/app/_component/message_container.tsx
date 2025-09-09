@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from "react";
 import CompareButton from "./_message-container-comp/compare_button";
 import CopyButton from "./_message-container-comp/copy_button";
 import FormattedMessage from "./_message-container-comp/formatted_message";
+import LoadingIndicatorWithMessage from "./_message-container-comp/loading_indicator_with_message";
 import MessageWithFile from "./_message-container-comp/message_with_file";
 import ModelDropdownButton from "./_message-container-comp/model_dropdown_button";
 import RegenerateButton from "./_message-container-comp/regenerate_button";
@@ -130,41 +131,28 @@ const MessageContainer = () => {
                       msg.role === "user"
                         ? "bg-blue-600 rounded-br-none"
                         : shouldShowLoading
-                        ? "bg-transparent rounded-bl-none"
+                        ? "bg-gray-900 border border-gray-800 rounded-bl-none"
                         : "bg-gray-800 rounded-bl-none"
                     )}
                   >
                     {shouldShowLoading ? (
-                      <div className="flex items-center space-x-1">
-                        {/* Dot 1 */}
-                        <div className="relative flex h-3 w-3">
-                          <div className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gray-400 opacity-75"></div>
-                          <div className="relative inline-flex rounded-full h-3 w-3 bg-gray-500"></div>
-                        </div>
-                        {/* Dot 2 */}
-                        <div className="relative flex h-3 w-3">
-                          <div
-                            className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gray-400 opacity-75"
-                            style={{ animationDelay: "150ms" }}
-                          ></div>
-                          <div className="relative inline-flex rounded-full h-3 w-3 bg-gray-500"></div>
-                        </div>
-                        {/* Dot 3 */}
-                        <div className="relative flex h-3 w-3">
-                          <div
-                            className="animate-ping absolute inline-flex h-full w-full rounded-full bg-gray-400 opacity-75"
-                            style={{ animationDelay: "300ms" }}
-                          ></div>
-                          <div className="relative inline-flex rounded-full h-3 w-3 bg-gray-500"></div>
-                        </div>
+                      <div className="p-1">
+                        <LoadingIndicatorWithMessage
+                          webSearchData={msg.webSearchData}
+                        />
                       </div>
                     ) : msg.file ? (
-                      <MessageWithFile content={msg.content} file={msg.file} />
+                      <MessageWithFile
+                        content={msg.content}
+                        file={msg.file}
+                        webSearchData={msg.webSearchData}
+                      />
                     ) : (
                       <FormattedMessage
                         content={msg.content}
                         reasoning={msg.reasoning}
                         hasReasoningCapability={msg.hasReasoningCapability}
+                        webSearchData={msg.webSearchData}
                       />
                     )}
                   </div>

@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import FormattedMessage from "./formatted_message";
 
-// Define props to accept file information
+// Define props to accept file information and web search data
 interface MessageWithFileProps {
   content: string;
   file?: {
@@ -11,9 +11,27 @@ interface MessageWithFileProps {
     size: number;
     type: string;
   };
+  webSearchData?: {
+    queries: Array<{
+      id: string;
+      query: string;
+      timestamp: string;
+    }>;
+    results: Array<{
+      title: string;
+      snippet: string;
+      link: string;
+      source: string;
+      timestamp: string;
+    }>;
+  };
 }
 
-const MessageWithFile = ({ content, file }: MessageWithFileProps) => {
+const MessageWithFile = ({
+  content,
+  file,
+  webSearchData,
+}: MessageWithFileProps) => {
   const fileInfoRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -77,7 +95,7 @@ const MessageWithFile = ({ content, file }: MessageWithFileProps) => {
     <div>
       {file && <div ref={fileInfoRef} className="file-attachment"></div>}
       <div className="message-content">
-        <FormattedMessage content={content} />
+        <FormattedMessage content={content} webSearchData={webSearchData} />
       </div>
     </div>
   );

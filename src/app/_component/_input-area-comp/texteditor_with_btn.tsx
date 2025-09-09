@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-
 import SendIcon from "@/assets/icons/send";
+import ClientOnly from "@/component/client_only";
 import {
   useChatActions,
   useInputValue,
   useIsLoading,
 } from "@/contexts/chat/hooks";
 import { useFileAttachment } from "@/contexts/file-attachment/file_attachment_context";
+import { useEffect, useRef, useState } from "react";
+import { BsSearch } from "react-icons/bs";
 import FileAttachment from "./file_attachment";
 
 const TextEditorWithBtn = () => {
@@ -18,10 +19,36 @@ const TextEditorWithBtn = () => {
   const { attachedFile, clearAttachedFile } = useFileAttachment();
   const textAreaRef = useRef<HTMLTextAreaElement>(null);
 
+  // Initialize with default values
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [showedWebSearchNotification, setShowedWebSearchNotification] =
+    useState(false);
+
+  // Load saved preferences from localStorage after component mounts (client-side only)
+  useEffect(() => {
+    // Load web search enabled state
+    const savedWebSearch = localStorage.getItem("webSearchEnabled");
+    if (savedWebSearch === "true") {
+      setWebSearchEnabled(true);
+    }
+
+    // Load notification state
+    const savedNotification = localStorage.getItem(
+      "webSearchNotificationShown"
+    );
+    if (savedNotification === "true") {
+      setShowedWebSearchNotification(true);
+    }
+  }, []);
+
+  // Save web search preference when it changes
+  useEffect(() => {
+    localStorage.setItem("webSearchEnabled", webSearchEnabled.toString());
+  }, [webSearchEnabled]);
+
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputValue(e.target.value);
     e.target.style.height = "auto"; // Reset height
-    // e.target.style.height = `${e.target.scrollHeight}px`; // Set to new height
     e.target.style.height = Math.min(e.target.scrollHeight, 350) + "px";
   };
 
@@ -44,20 +71,26 @@ const TextEditorWithBtn = () => {
         }
 
         // Send the message with file metadata
-        sendMessage(messageContent, {
+        sendMessage(messageContent, webSearchEnabled, {
           name: file.name,
           size: file.size,
           type: file.type,
         });
       } else {
         // Regular text message without file
-        sendMessage(messageContent);
+        sendMessage(messageContent, webSearchEnabled);
       }
+
+      // Clear the input and reset
+      setInputValue("");
 
       // Clear the attached file after sending
       if (attachedFile) {
         clearAttachedFile();
       }
+
+      // We no longer reset web search toggle after sending
+      // This allows it to stay enabled until manually toggled off
     }
   };
 
@@ -65,6 +98,30 @@ const TextEditorWithBtn = () => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
+    }
+  };
+
+  const toggleWebSearch = () => {
+    const newValue = !webSearchEnabled;
+    setWebSearchEnabled(newValue);
+
+    // Show a notification the first time web search is enabled - only on client side
+    if (newValue && !showedWebSearchNotification) {
+      setShowedWebSearchNotification(true);
+
+      // Only show notification and store in localStorage after a small delay
+      // to ensure we're fully on the client side
+      setTimeout(() => {
+        localStorage.setItem("webSearchNotificationShown", "true");
+
+        // You could implement a toast notification here if you want
+        console.log(
+          "Web search enabled and will stay on until manually disabled"
+        );
+        alert(
+          "Web search is now enabled and will stay on until you manually disable it"
+        );
+      }, 100);
     }
   };
 
@@ -88,6 +145,34 @@ const TextEditorWithBtn = () => {
           />
         </div>
       )}
+
+      {/* Web search toggle button */}
+      <div className="mb-2 flex justify-end">
+        <ClientOnly>
+          {/* Use separate buttons for enabled/disabled states to avoid hydration issues */}
+          {webSearchEnabled ? (
+            <button
+              onClick={toggleWebSearch}
+              className="flex items-center px-3 py-1 rounded-lg text-sm bg-blue-600 text-white font-medium ring-2 ring-blue-400 shadow-md transition-all duration-200"
+              title="Web search enabled"
+            >
+              <BsSearch className="mr-1 text-blue-200" size={14} />
+              Web search ON
+              <span className="ml-1 w-2 h-2 bg-blue-300 rounded-full animate-pulse"></span>
+            </button>
+          ) : (
+            <button
+              onClick={toggleWebSearch}
+              className="flex items-center px-3 py-1 rounded-lg text-sm bg-gray-700 text-gray-300 hover:bg-gray-600 transition-all duration-200"
+              title="Enable web search"
+            >
+              <BsSearch className="mr-1" size={14} />
+              Web search
+            </button>
+          )}
+        </ClientOnly>
+      </div>
+
       <textarea
         placeholder={
           attachedFile

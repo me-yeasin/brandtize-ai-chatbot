@@ -135,6 +135,7 @@ export interface ChatContextType {
   dispatch: React.Dispatch<ChatAction>;
   sendMessage: (
     content: string,
+    useWebSearch?: boolean,
     fileInfo?: { name: string; size: number; type: string }
   ) => void;
   clearChat: () => void;
