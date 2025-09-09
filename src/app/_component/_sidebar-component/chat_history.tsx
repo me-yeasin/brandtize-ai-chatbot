@@ -9,7 +9,11 @@ interface Conversation {
   updatedAt: string;
 }
 
-const ChatHistory = () => {
+type ChatHistoryProps = {
+  onItemSelected?: () => void;
+};
+
+const ChatHistory = ({ onItemSelected }: ChatHistoryProps) => {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [initialLoading, setInitialLoading] = useState(true);
   const { loadConversation, currentConversation } = useChat();
@@ -109,7 +113,10 @@ const ChatHistory = () => {
                 id={conversation._id}
                 title={conversation.title}
                 isActive={currentConversation === conversation._id}
-                onClick={() => loadConversation(conversation._id)}
+                onClick={async () => {
+                  await loadConversation(conversation._id);
+                  onItemSelected?.();
+                }}
                 onRename={handleConversationRename}
               />
             ))}
