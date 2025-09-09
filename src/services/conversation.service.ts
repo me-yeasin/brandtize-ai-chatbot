@@ -7,22 +7,47 @@ export const ConversationService = {
   async createConversation(title: string, initialMessage?: Message) {
     await connectToDatabase();
 
-    const conversation = new Conversation({
+    return Conversation.create({
       title,
       messages: initialMessage ? [initialMessage] : [],
     });
+  },
 
-    await conversation.save();
+  async getConversation(conversationId: string) {
+    await connectToDatabase();
+    console.log(`Getting conversation with ID: ${conversationId}`);
+
+    const conversation = await Conversation.findById(conversationId);
+
+    // Log to verify if compareResponses are included in the response
+    if (conversation && conversation.messages) {
+      console.log(
+        `Found conversation with ${conversation.messages.length} messages`
+      );
+      const messagesWithCompare = conversation.messages.filter(
+        (msg: Message) =>
+          msg.compareResponses && msg.compareResponses.length > 0
+      );
+
+      if (messagesWithCompare.length > 0) {
+        console.log(
+          `Found ${messagesWithCompare.length} messages with compare responses`
+        );
+        messagesWithCompare.forEach((msg: Message) => {
+          console.log(
+            `Message ID: ${msg.id} has ${
+              msg.compareResponses?.length || 0
+            } compare responses`
+          );
+        });
+      } else {
+        console.log("No messages with compare responses found");
+      }
+    }
+
     return conversation;
   },
 
-  // Get conversation by ID
-  async getConversation(conversationId: string) {
-    await connectToDatabase();
-    return Conversation.findById(conversationId);
-  },
-
-  // Get all conversations (possibly paginated)
   async getConversations(limit: number = 20, skip: number = 0) {
     await connectToDatabase();
     return Conversation.find({})
@@ -36,11 +61,10 @@ export const ConversationService = {
     try {
       await connectToDatabase();
 
-      // First check if conversation exists
-      const existingConversation = await Conversation.findById(conversationId);
-      if (!existingConversation) {
-        console.error(`Conversation with ID ${conversationId} not found`);
-        return null;
+      // Validate that the conversation exists
+      const conversation = await Conversation.findById(conversationId);
+      if (!conversation) {
+        throw new Error(`Conversation not found: ${conversationId}`);
       }
 
       // Add the message to the conversation
@@ -59,21 +83,19 @@ export const ConversationService = {
         `Error adding message to conversation ${conversationId}:`,
         error
       );
-      throw error; // Re-throw to be handled by the API route
+      throw error;
     }
   },
 
-  // Update conversation title
   async updateTitle(conversationId: string, title: string) {
     await connectToDatabase();
     return Conversation.findByIdAndUpdate(
       conversationId,
-      { $set: { title } },
+      { title },
       { new: true }
     );
   },
 
-  // Delete conversation
   async deleteConversation(conversationId: string) {
     await connectToDatabase();
     return Conversation.findByIdAndDelete(conversationId);

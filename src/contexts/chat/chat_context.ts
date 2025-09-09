@@ -24,6 +24,15 @@ type ChatAction =
   | {
       type: "UPDATE_STREAMING_MESSAGE";
       payload: { id: string; content: string; reasoning?: string };
+    }
+  | {
+      type: "UPDATE_MESSAGE";
+      payload: {
+        id: string;
+        content: string;
+        reasoning?: string;
+        hasReasoningCapability?: boolean;
+      };
     };
 
 export const initialState: ChatState = {
@@ -90,6 +99,21 @@ export function chatReducer(state: ChatState, action: ChatAction): ChatState {
         ...state,
         selectedModel: action.payload,
       };
+    case "UPDATE_MESSAGE":
+      return {
+        ...state,
+        messages: state.messages.map((msg) => {
+          if (msg.id === action.payload.id) {
+            return {
+              ...msg,
+              content: action.payload.content,
+              reasoning: action.payload.reasoning,
+              hasReasoningCapability: action.payload.hasReasoningCapability,
+            };
+          }
+          return msg;
+        }),
+      };
     case "CONVERSATION_UPDATED":
       // This case is specifically to trigger rerenders for components
       // that need to refresh when conversations change
@@ -119,6 +143,12 @@ export interface ChatContextType {
   loadConversation: (conversationId: string) => void;
   newChat: () => void;
   refreshConversations: () => void; // New function to refresh the conversation list
+  updateMessage: (
+    id: string,
+    content: string,
+    reasoning?: string,
+    hasReasoningCapability?: boolean
+  ) => void; // New function to update a specific message
   currentConversation: string | null;
   puterState?: {
     puter: Puter | null;

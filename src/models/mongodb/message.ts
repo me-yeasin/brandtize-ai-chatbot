@@ -12,6 +12,13 @@ export interface MessageDocument extends Document {
   };
   reasoning?: string;
   hasReasoningCapability?: boolean;
+  compareResponses?: Array<{
+    model: string;
+    content: string;
+    timestamp?: Date;
+    reasoning?: string;
+    hasReasoningCapability?: boolean;
+  }>;
 }
 
 export const MessageSchema = new Schema({
@@ -39,6 +46,15 @@ export const MessageSchema = new Schema({
   },
   reasoning: String,
   hasReasoningCapability: Boolean,
+  compareResponses: [
+    {
+      model: String,
+      content: String,
+      timestamp: Date,
+      reasoning: String,
+      hasReasoningCapability: Boolean,
+    },
+  ],
 });
 
 export default mongoose.models.Message ||

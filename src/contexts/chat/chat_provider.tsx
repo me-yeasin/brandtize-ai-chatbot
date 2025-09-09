@@ -483,7 +483,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
             },
           }),
         },
-        false
+        true
       );
       console.log("AI Response initial:", maybeStream);
 
@@ -925,13 +925,50 @@ export function ChatProvider({ children }: ChatProviderProps) {
       }
 
       const conversation = await response.json();
+      console.log("Loaded conversation:", conversation);
+
+      // Log if any messages have compare responses
+      if (conversation.messages) {
+        const messagesWithCompare = conversation.messages.filter(
+          (msg: Message) =>
+            msg.compareResponses && msg.compareResponses.length > 0
+        );
+
+        if (messagesWithCompare.length > 0) {
+          console.log(
+            `Found ${messagesWithCompare.length} messages with compare responses`
+          );
+          messagesWithCompare.forEach((msg: Message) => {
+            console.log(
+              `Message ID: ${msg.id} has ${
+                msg.compareResponses?.length || 0
+              } compare responses`
+            );
+          });
+        }
+      }
 
       // Clear current messages
       dispatch({ type: "CLEAR_MESSAGES" });
 
       // Add each message from the conversation
+      // Ensure we preserve all fields including compareResponses
       conversation.messages.forEach((message: Message) => {
-        dispatch({ type: "ADD_MESSAGE", payload: message });
+        // Make sure the message is fully formed with all properties
+        const completeMessage: Message = {
+          id: message.id,
+          role: message.role,
+          content: message.content,
+          timestamp: message.timestamp
+            ? new Date(message.timestamp)
+            : new Date(),
+          reasoning: message.reasoning,
+          hasReasoningCapability: message.hasReasoningCapability,
+          compareResponses: message.compareResponses || [],
+          file: message.file,
+        };
+
+        dispatch({ type: "ADD_MESSAGE", payload: completeMessage });
       });
 
       // Set current conversation
@@ -973,6 +1010,18 @@ export function ChatProvider({ children }: ChatProviderProps) {
     }, 300);
   };
 
+  const updateMessage = (
+    id: string,
+    content: string,
+    reasoning?: string,
+    hasReasoningCapability?: boolean
+  ) => {
+    dispatch({
+      type: "UPDATE_MESSAGE",
+      payload: { id, content, reasoning, hasReasoningCapability },
+    });
+  };
+
   const value: ChatContextType = {
     state,
     dispatch,
@@ -983,6 +1032,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
     loadConversation,
     newChat,
     refreshConversations,
+    updateMessage,
     currentConversation,
     puterState: { puter, isLoading: puterLoading, error: puterError }, // Optional: expose Puter state
   };
