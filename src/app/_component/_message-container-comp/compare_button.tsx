@@ -4,6 +4,7 @@ import { useChat } from "@/contexts/chat/hooks";
 import { Message } from "@/models/message";
 import { AI_MODELS } from "@/utils/model_lists";
 import { useEffect, useRef, useState } from "react";
+import "./custom_scrollbar.css";
 import FormattedMessage from "./formatted_message";
 
 interface CompareButtonProps {
@@ -425,6 +426,8 @@ const CompareButton = ({ message, previousMessage }: CompareButtonProps) => {
       return;
 
     try {
+      // Mark that the prompt was edited and responses were regenerated
+      setWasPromptEdited(true);
       // First, update the original user message in the database
       const updateUserMessageResponse = await fetch(
         `/api/messages/${previousMessage.id}/content`,
@@ -548,6 +551,28 @@ const CompareButton = ({ message, previousMessage }: CompareButtonProps) => {
     previousMessage?.content || ""
   );
   const [hasContentChanged, setHasContentChanged] = useState(false);
+  const [wasPromptEdited, setWasPromptEdited] = useState(false);
+
+  // Copy functionality states
+  const [copiedResponseId, setCopiedResponseId] = useState<string | null>(null);
+
+  // Function to copy text to clipboard and show feedback
+  const copyToClipboard = (text: string, responseId: string) => {
+    navigator.clipboard.writeText(text).then(
+      function () {
+        // Set the copied state to show feedback
+        setCopiedResponseId(responseId);
+        // Reset after 2 seconds
+        setTimeout(() => {
+          setCopiedResponseId(null);
+        }, 2000);
+      },
+      function (err) {
+        console.error("Could not copy text: ", err);
+        alert("Failed to copy text to clipboard");
+      }
+    );
+  };
 
   // Load existing alternative responses if available
   useEffect(() => {
@@ -580,7 +605,11 @@ const CompareButton = ({ message, previousMessage }: CompareButtonProps) => {
     if (isDialogOpen) {
       setIsEditing(false);
       setEditedContent(previousMessage?.content || "");
-      setHasContentChanged(false);
+      // Reset copying state
+      setCopiedResponseId(null);
+
+      // Don't reset wasPromptEdited flag - keep it for persistent header state
+      // Don't reset hasContentChanged if content was changed
     }
   }, [isDialogOpen, previousMessage?.content]);
 
@@ -656,7 +685,7 @@ const CompareButton = ({ message, previousMessage }: CompareButtonProps) => {
       {/* Full-screen dialog */}
       {isDialogOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-80">
-          <div className="bg-gray-900 border border-gray-500 w-[calc(100%-40px)] h-[calc(100%-40px)] rounded-lg flex flex-col overflow-hidden relative">
+          <div className="bg-gray-900 border border-gray-500 w-[calc(100%-40px)] h-[calc(100%-40px)] rounded-lg flex flex-col overflow-hidden relative custom-scrollbar">
             {/* Close button */}
             <div className="absolute top-4 right-4">
               <button
@@ -709,7 +738,7 @@ const CompareButton = ({ message, previousMessage }: CompareButtonProps) => {
                   </button>
 
                   {isDropdownOpen && (
-                    <div className="absolute z-20 mt-1 w-full bg-gray-800 border border-gray-700 rounded-md shadow-lg max-h-60 overflow-auto">
+                    <div className="absolute z-20 mt-1 w-full bg-gray-800 border border-gray-700 rounded-md shadow-lg max-h-60 overflow-auto custom-scrollbar">
                       {AI_MODELS.map((model) => {
                         // Check if this model already has a response
                         const hasExistingResponse = alternativeResponses.some(
@@ -918,7 +947,7 @@ const CompareButton = ({ message, previousMessage }: CompareButtonProps) => {
                             e.target.value !== previousMessage.content
                           );
                         }}
-                        className="w-full bg-gray-700 text-white rounded-lg p-3 min-h-[100px] resize-none focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        className="w-full bg-gray-700 text-white rounded-lg p-3 min-h-[100px] resize-none focus:outline-none focus:ring-2 focus:ring-blue-500 custom-scrollbar"
                         placeholder="Enter your question..."
                       />
                       <div className="flex gap-2">
@@ -953,16 +982,54 @@ const CompareButton = ({ message, previousMessage }: CompareButtonProps) => {
                 {/* Horizontal Scroll View List */}
                 <div
                   ref={scrollContainerRef}
-                  className="px-6 py-4 overflow-x-auto overflow-y-auto max-h-full"
+                  className="px-6 py-4 overflow-x-auto overflow-y-auto max-h-full custom-scrollbar"
                 >
                   <div className="flex space-x-4">
                     <div className="flex-shrink-0 max-w-[500px] relative">
                       <div className="flex justify-between items-center sticky -top-4 bg-gray-900 py-2 z-10 border-b border-gray-700 shadow-sm">
                         <h3 className="text-sm font-bold text-blue-400 mb-0">
-                          Current Response
+                          {wasPromptEdited ||
+                          editedContent !== previousMessage?.content
+                            ? "Original Response (Before Edit)"
+                            : "Current Response"}
                         </h3>
+                        <div className="flex items-center gap-1">
+                          {/* Copy button */}
+                          <button
+                            onClick={() =>
+                              copyToClipboard(message.content, "main-response")
+                            }
+                            className="text-gray-400 hover:text-blue-500 p-1 rounded-full hover:bg-gray-700 transition-colors"
+                            aria-label="Copy response"
+                            title="Copy response to clipboard"
+                          >
+                            {copiedResponseId === "main-response" ? (
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="16"
+                                height="16"
+                                fill="currentColor"
+                                className="text-green-500"
+                                viewBox="0 0 16 16"
+                              >
+                                <path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425a.247.247 0 0 1 .02-.022Z" />
+                              </svg>
+                            ) : (
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                width="16"
+                                height="16"
+                                fill="currentColor"
+                                viewBox="0 0 16 16"
+                              >
+                                <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z" />
+                                <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z" />
+                              </svg>
+                            )}
+                          </button>
+                        </div>
                       </div>
-                      <div className="bg-gray-800 rounded-lg rounded-bl-none px-2 py-1">
+                      <div className="bg-gray-800 rounded-lg rounded-bl-none px-2 py-1 custom-scrollbar">
                         <FormattedMessage
                           content={message.content}
                           reasoning={message.reasoning}
@@ -1000,13 +1067,51 @@ const CompareButton = ({ message, previousMessage }: CompareButtonProps) => {
                               >
                                 <svg
                                   xmlns="http://www.w3.org/2000/svg"
-                                  width="16"
-                                  height="16"
+                                  width="24"
+                                  height="24"
                                   fill="currentColor"
                                   viewBox="0 0 16 16"
                                 >
                                   <path d="M10.97 4.97a.75.75 0 0 1 1.07 1.05l-3.99 4.99a.75.75 0 0 1-1.08.02L4.324 8.384a.75.75 0 1 1 1.06-1.06l2.094 2.093 3.473-4.425a.267.267 0 0 1 .02-.022z" />
                                 </svg>
+                              </button>
+                            )}
+                            {/* Copy button */}
+                            {!item.isLoading && item.response && (
+                              <button
+                                onClick={() =>
+                                  copyToClipboard(
+                                    item.response!.content,
+                                    `alt-${item.model}`
+                                  )
+                                }
+                                className="text-gray-400 hover:text-blue-500 p-1 rounded-full hover:bg-gray-700 transition-colors"
+                                aria-label="Copy response"
+                                title="Copy response to clipboard"
+                              >
+                                {copiedResponseId === `alt-${item.model}` ? (
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    width="16"
+                                    height="16"
+                                    fill="currentColor"
+                                    className="text-green-500"
+                                    viewBox="0 0 16 16"
+                                  >
+                                    <path d="M12.736 3.97a.733.733 0 0 1 1.047 0c.286.289.29.756.01 1.05L7.88 12.01a.733.733 0 0 1-1.065.02L3.217 8.384a.757.757 0 0 1 0-1.06.733.733 0 0 1 1.047 0l3.052 3.093 5.4-6.425a.247.247 0 0 1 .02-.022Z" />
+                                  </svg>
+                                ) : (
+                                  <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    width="16"
+                                    height="16"
+                                    fill="currentColor"
+                                    viewBox="0 0 16 16"
+                                  >
+                                    <path d="M4 1.5H3a2 2 0 0 0-2 2V14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V3.5a2 2 0 0 0-2-2h-1v1h1a1 1 0 0 1 1 1V14a1 1 0 0 1-1 1H3a1 1 0 0 1-1-1V3.5a1 1 0 0 1 1-1h1v-1z" />
+                                    <path d="M9.5 1a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-3a.5.5 0 0 1-.5-.5v-1a.5.5 0 0 1 .5-.5h3zm-3-1A1.5 1.5 0 0 0 5 1.5v1A1.5 1.5 0 0 0 6.5 4h3A1.5 1.5 0 0 0 11 2.5v-1A1.5 1.5 0 0 0 9.5 0h-3z" />
+                                  </svg>
+                                )}
                               </button>
                             )}
                             {/* Remove button */}
@@ -1017,8 +1122,8 @@ const CompareButton = ({ message, previousMessage }: CompareButtonProps) => {
                             >
                               <svg
                                 xmlns="http://www.w3.org/2000/svg"
-                                width="16"
-                                height="16"
+                                width="24"
+                                height="24"
                                 fill="currentColor"
                                 viewBox="0 0 16 16"
                               >
@@ -1027,7 +1132,7 @@ const CompareButton = ({ message, previousMessage }: CompareButtonProps) => {
                             </button>
                           </div>
                         </div>
-                        <div className="bg-gray-800 rounded-lg rounded-bl-none px-2 py-1">
+                        <div className="bg-gray-800 rounded-lg rounded-bl-none px-2 py-1 custom-scrollbar">
                           {item.isLoading ? (
                             <div className="flex items-center space-x-1 p-2">
                               {/* Animated loading dots */}
