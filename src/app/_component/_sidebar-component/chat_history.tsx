@@ -96,7 +96,7 @@ const ChatHistory = ({ onItemSelected }: ChatHistoryProps) => {
   );
 
   return (
-    <div className="flex-1 overflow-y-auto px-2">
+    <div className="flex-1 h-[calc(100vh-220px)] overflow-y-auto px-2">
       {initialLoading ? (
         <div className="flex justify-center items-center h-32">
           <CircleSpinner />

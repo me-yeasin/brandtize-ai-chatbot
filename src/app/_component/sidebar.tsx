@@ -35,7 +35,6 @@ const ChatSidebar = ({ open, onClose }: ChatSidebarProps) => {
         effectiveOpen ? "md:w-[350px]" : "md:w-0",
         "md:static md:block md:h-full md:bg-transparent flex flex-col h-full overflow-hidden transition-[width] duration-200",
         effectiveOpen ? "md:border-r md:border-gray-800" : "md:border-r-0",
-        "flex",
       ].join(" ")}
     >
       {/* Header with Logo and Close Button */}
