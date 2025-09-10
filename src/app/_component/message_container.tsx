@@ -5,6 +5,7 @@ import {
 } from "@/contexts/chat/hooks";
 import { cn } from "@/utils/taildwind_helper";
 import { useEffect, useRef, useState } from "react";
+import ClarifyButton from "./_message-container-comp/clarify_button";
 import CompareButton from "./_message-container-comp/compare_button";
 import CopyButton from "./_message-container-comp/copy_button";
 import FormattedMessage from "./_message-container-comp/formatted_message";
@@ -165,6 +166,10 @@ const MessageContainer = () => {
                           previousMessage={prevUserMessage}
                         />
                         <CompareButton
+                          message={msg}
+                          previousMessage={prevUserMessage}
+                        />
+                        <ClarifyButton
                           message={msg}
                           previousMessage={prevUserMessage}
                         />
