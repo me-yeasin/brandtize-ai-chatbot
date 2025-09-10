@@ -109,7 +109,13 @@ const VoiceRecorder = ({ onClose }: VoiceRecorderProps) => {
 
   const handleSend = () => {
     if (transcript) {
-      sendMessage(transcript);
+      let useWebSearch = false;
+      try {
+        useWebSearch =
+          typeof window !== "undefined" &&
+          localStorage.getItem("webSearchEnabled") === "true";
+      } catch {}
+      sendMessage(transcript, useWebSearch);
       onClose();
     } else {
       setError("No voice transcript available. Try recording again.");

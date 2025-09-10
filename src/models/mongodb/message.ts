@@ -19,6 +19,20 @@ export interface MessageDocument extends Document {
     reasoning?: string;
     hasReasoningCapability?: boolean;
   }>;
+  webSearchData?: {
+    queries: Array<{
+      id: string;
+      query: string;
+      timestamp: string;
+    }>;
+    results: Array<{
+      title: string;
+      link: string;
+      snippet: string;
+      source: string;
+      timestamp: string;
+    }>;
+  };
 }
 
 export const MessageSchema = new Schema({
@@ -55,6 +69,24 @@ export const MessageSchema = new Schema({
       hasReasoningCapability: Boolean,
     },
   ],
+  webSearchData: {
+    queries: [
+      {
+        id: String,
+        query: String,
+        timestamp: String,
+      },
+    ],
+    results: [
+      {
+        title: String,
+        link: String,
+        snippet: String,
+        source: String,
+        timestamp: String,
+      },
+    ],
+  },
 });
 
 export default mongoose.models.Message ||

@@ -59,7 +59,13 @@ const ModelDropdownButton = ({ previousMessage }: ModelDropdownButtonProps) => {
 
     // Regenerate message with the new model
     if (previousMessage && previousMessage.content) {
-      sendMessage(previousMessage.content);
+      let useWebSearch = false;
+      try {
+        useWebSearch =
+          typeof window !== "undefined" &&
+          localStorage.getItem("webSearchEnabled") === "true";
+      } catch {}
+      sendMessage(previousMessage.content, useWebSearch);
     }
 
     // Close the dropdown

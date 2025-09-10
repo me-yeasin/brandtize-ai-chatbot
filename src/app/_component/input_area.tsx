@@ -28,7 +28,9 @@ const InputArea = () => {
             </ToolBtn>
             <ModelSelector />
           </div>
-          <div>AI may produce inaccurate information</div>
+          <div className="hidden sm:block">
+            AI may produce inaccurate information
+          </div>
         </div>
       </div>
 

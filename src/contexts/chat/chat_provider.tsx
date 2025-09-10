@@ -1221,7 +1221,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
       dispatch({ type: "CLEAR_MESSAGES" });
 
       // Add each message from the conversation
-      // Ensure we preserve all fields including compareResponses
+      // Ensure we preserve all fields including compareResponses and webSearchData
       conversation.messages.forEach((message: Message) => {
         // Make sure the message is fully formed with all properties
         const completeMessage: Message = {
@@ -1235,6 +1235,7 @@ export function ChatProvider({ children }: ChatProviderProps) {
           hasReasoningCapability: message.hasReasoningCapability,
           compareResponses: message.compareResponses || [],
           file: message.file,
+          webSearchData: message.webSearchData,
         };
 
         dispatch({ type: "ADD_MESSAGE", payload: completeMessage });

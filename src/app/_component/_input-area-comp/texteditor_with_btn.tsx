@@ -157,7 +157,7 @@ const TextEditorWithBtn = () => {
               title="Web search enabled"
             >
               <BsSearch className="mr-1 text-blue-200" size={14} />
-              Web search ON
+              Web
               <span className="ml-1 w-2 h-2 bg-blue-300 rounded-full animate-pulse"></span>
             </button>
           ) : (
@@ -167,7 +167,7 @@ const TextEditorWithBtn = () => {
               title="Enable web search"
             >
               <BsSearch className="mr-1" size={14} />
-              Web search
+              Web
             </button>
           )}
         </ClientOnly>

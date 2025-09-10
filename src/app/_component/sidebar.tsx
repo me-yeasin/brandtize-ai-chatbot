@@ -3,24 +3,20 @@ import { useMemo, useState } from "react";
 import ChatHistory from "./_sidebar-component/chat_history";
 import NewChatBtn from "./_sidebar-component/newchat_btn";
 import UserProfile from "./_sidebar-component/user_profile";
-
 type ChatSidebarProps = {
   open?: boolean; // when provided, the component becomes controlled
   onClose?: () => void;
 };
-
 const ChatSidebar = ({ open, onClose }: ChatSidebarProps) => {
   const [isOpen, setIsOpen] = useState(true);
   const effectiveOpen = useMemo(
     () => (open !== undefined ? open : isOpen),
     [open, isOpen]
   );
-
   const handleClose = () => {
     if (onClose) return onClose();
     setIsOpen(false);
   };
-
   // Close sidebar only on mobile viewports (under md) after an action
   const closeOnMobile = () => {
     if (
@@ -30,7 +26,6 @@ const ChatSidebar = ({ open, onClose }: ChatSidebarProps) => {
       handleClose();
     }
   };
-
   return (
     <div
       className={[
@@ -40,6 +35,7 @@ const ChatSidebar = ({ open, onClose }: ChatSidebarProps) => {
         effectiveOpen ? "md:w-[350px]" : "md:w-0",
         "md:static md:block md:h-full md:bg-transparent flex flex-col h-full overflow-hidden transition-[width] duration-200",
         effectiveOpen ? "md:border-r md:border-gray-800" : "md:border-r-0",
+        "flex",
       ].join(" ")}
     >
       {/* Header with Logo and Close Button */}
@@ -72,12 +68,15 @@ const ChatSidebar = ({ open, onClose }: ChatSidebarProps) => {
         </button>
       </div>
 
-      {/* Body */}
-      <NewChatBtn onAfterNewChat={closeOnMobile} />
-      <ChatHistory onItemSelected={closeOnMobile} />
+      {/* Scrollable content area - NewChatBtn and ChatHistory */}
+      <div className="flex-1 overflow-y-auto">
+        <NewChatBtn onAfterNewChat={closeOnMobile} />
+        <ChatHistory onItemSelected={closeOnMobile} />
+      </div>
+
+      {/* UserProfile - always at the bottom */}
       <UserProfile />
     </div>
   );
 };
-
 export default ChatSidebar;

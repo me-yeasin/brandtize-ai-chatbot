@@ -12,7 +12,14 @@ const RegenerateButton = ({ previousMessage }: RegenerateButtonProps) => {
 
   const handleRegenerate = () => {
     if (previousMessage && previousMessage.content) {
-      sendMessage(previousMessage.content);
+      // Respect Web Search toggle saved in localStorage
+      let useWebSearch = false;
+      try {
+        useWebSearch =
+          typeof window !== "undefined" &&
+          localStorage.getItem("webSearchEnabled") === "true";
+      } catch {}
+      sendMessage(previousMessage.content, useWebSearch);
     }
   };
 
