@@ -5,11 +5,14 @@ import InputArea from "./_component/input_area";
 import MessageContainer from "./_component/message_container";
 import ChatSidebar from "./_component/sidebar";
 
+import InvestorMessage from "@/component/InvestorMessage";
+import { DevBanner } from "@/component/dev_banner";
 import { ChatProvider } from "@/contexts/chat/chat_provider";
 import PuterProvider from "@/service-providers/puter-provider";
 
 export default function Home() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isInvestorDialogOpen, setIsInvestorDialogOpen] = useState(false);
   const openSidebar = useCallback(() => setSidebarOpen(true), []);
   const closeSidebar = useCallback(() => setSidebarOpen(false), []);
 
@@ -61,9 +64,30 @@ export default function Home() {
               </button>
             )}
 
+            {/* Horizontal row with DevBanner and Investment Info Button */}
+            <div className="fixed top-0 right-0 z-40 m-3 flex gap-2">
+              <DevBanner />
+              {/* Investment Info Button matching DevBanner style */}
+              <button
+                type="button"
+                onClick={() => setIsInvestorDialogOpen(true)}
+                aria-label="Investment Opportunities"
+                title="Investment Opportunities"
+                className="bg-blue-500 text-white text-xs px-2 py-1 rounded uppercase tracking-wider font-bold shadow-md hover:bg-blue-600 transition-colors cursor-pointer"
+              >
+                Investment Info
+              </button>
+            </div>
+
             <MessageContainer />
             <InputArea />
           </div>
+
+          {/* Investor Dialog */}
+          <InvestorMessage
+            isOpen={isInvestorDialogOpen}
+            onClose={() => setIsInvestorDialogOpen(false)}
+          />
         </ChatProvider>
       </PuterProvider>
     </div>

@@ -4,11 +4,16 @@ import Conversation from "@/models/mongodb/conversation";
 
 export const ConversationService = {
   // Create a new conversation with initial message
-  async createConversation(title: string, initialMessage?: Message) {
+  async createConversation(
+    title: string,
+    userId?: string,
+    initialMessage?: Message
+  ) {
     await connectToDatabase();
 
     return Conversation.create({
       title,
+      userId,
       messages: initialMessage ? [initialMessage] : [],
     });
   },
@@ -48,9 +53,15 @@ export const ConversationService = {
     return conversation;
   },
 
-  async getConversations(limit: number = 20, skip: number = 0) {
+  async getConversations(
+    userId?: string,
+    limit: number = 20,
+    skip: number = 0
+  ) {
     await connectToDatabase();
-    return Conversation.find({})
+    // If userId is provided, filter by it, otherwise return all conversations
+    const query = userId ? { userId } : {};
+    return Conversation.find(query)
       .sort({ updatedAt: -1 })
       .skip(skip)
       .limit(limit);

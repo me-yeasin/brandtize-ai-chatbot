@@ -1,5 +1,6 @@
 import { useChat } from "@/contexts/chat/hooks";
-import { useEffect, useState } from "react";
+import { usePuterAuth } from "@/hooks/puter/usePuterAuth";
+import { useCallback, useEffect, useState } from "react";
 import CircleSpinner from "../../../component/animated/circle_spinner";
 import ChatItem from "./chat_item";
 
@@ -27,32 +28,48 @@ const ChatHistory = ({ onItemSelected }: ChatHistoryProps) => {
     );
   };
 
-  // Function to fetch conversations
-  const fetchConversations = async (isInitial = false) => {
-    try {
-      console.log("Fetching conversations for sidebar...");
-      const response = await fetch("/api/conversations");
-      if (response.ok) {
-        const data = await response.json();
-        setConversations(data);
-        console.log(`Loaded ${data.length} conversations`);
-        // Only set initialLoading to false when it's the initial fetch
+  // Get user from Puter auth
+  const { user } = usePuterAuth();
+
+  // Function to fetch conversations - wrapped in useCallback to avoid unnecessary re-renders
+  const fetchConversations = useCallback(
+    async (isInitial = false) => {
+      try {
+        console.log("Fetching conversations for sidebar...");
+
+        // Add userId as a query parameter if user is authenticated
+        const url = user?.uuid
+          ? `/api/conversations?userId=${encodeURIComponent(user.uuid)}`
+          : "/api/conversations";
+
+        console.log(
+          `Fetching conversations for user: ${user?.uuid || "anonymous"}`
+        );
+
+        const response = await fetch(url);
+        if (response.ok) {
+          const data = await response.json();
+          setConversations(data);
+          console.log(`Loaded ${data.length} conversations`);
+          // Only set initialLoading to false when it's the initial fetch
+          if (isInitial) {
+            setInitialLoading(false);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching conversations:", error);
         if (isInitial) {
           setInitialLoading(false);
         }
       }
-    } catch (error) {
-      console.error("Error fetching conversations:", error);
-      if (isInitial) {
-        setInitialLoading(false);
-      }
-    }
-  };
+    },
+    [user?.uuid]
+  ); // Add user.uuid as a dependency
 
-  // Load conversations on initial mount
+  // Load conversations on initial mount or when user changes
   useEffect(() => {
     fetchConversations(true); // Mark this as the initial fetch
-  }, []);
+  }, [fetchConversations, user?.uuid]); // Re-fetch when user ID changes
 
   // Listen for the CONVERSATION_UPDATED action
   // This will be triggered after the first AI response is saved
@@ -65,7 +82,7 @@ const ChatHistory = ({ onItemSelected }: ChatHistoryProps) => {
       );
       fetchConversations();
     }
-  }, [currentConversation]);
+  }, [currentConversation, fetchConversations]);
 
   // Group conversations by date
   const groupedConversations = conversations.reduce(

@@ -1,9 +1,16 @@
 import { ConversationService } from "@/services/conversation.service";
 import { NextRequest, NextResponse } from "next/server";
 
-export async function GET() {
+export async function GET(req: NextRequest) {
   try {
-    const conversations = await ConversationService.getConversations();
+    // Get the userId from query parameters
+    const { searchParams } = new URL(req.url);
+    const userId = searchParams.get("userId");
+
+    // Only fetch conversations for the specific user if userId is provided
+    const conversations = await ConversationService.getConversations(
+      userId || undefined
+    );
     return NextResponse.json(conversations);
   } catch (error) {
     console.error("Error fetching conversations:", error);
@@ -16,10 +23,11 @@ export async function GET() {
 
 export async function POST(req: NextRequest) {
   try {
-    const { title, initialMessage } = await req.json();
+    const { title, initialMessage, userId } = await req.json();
 
     const conversation = await ConversationService.createConversation(
       title || "New Conversation",
+      userId,
       initialMessage
     );
 

@@ -178,10 +178,18 @@ export function ChatProvider({ children }: ChatProviderProps) {
           // Create conversation with initial user message
           const title =
             content.length > 30 ? content.substring(0, 30) + "..." : content;
+
+          // Include user ID in the conversation if available
+          const userId = user?.uuid;
+
           const response = await fetch("/api/conversations", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title, initialMessage: userMessage }),
+            body: JSON.stringify({
+              title,
+              initialMessage: userMessage,
+              userId, // Include the user ID for the conversation
+            }),
           });
 
           if (!response.ok) {

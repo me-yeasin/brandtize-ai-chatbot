@@ -1,6 +1,5 @@
 import ClientOnly from "@/component/client_only";
-import { DevBanner } from "@/component/dev_banner";
-import { FileAttachmentProvider } from "@/contexts/file-attachment/file_attachment_context";
+import LayoutContent from "@/component/LayoutContent";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
@@ -32,11 +31,9 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {/* Add Development Environment Banner */}
         <ClientOnly>
-          <DevBanner position="top-right" />
+          <LayoutContent>{children}</LayoutContent>
         </ClientOnly>
-        <FileAttachmentProvider>{children}</FileAttachmentProvider>
       </body>
     </html>
   );
