@@ -30,7 +30,9 @@ const ChatSidebar = ({ open, onClose }: ChatSidebarProps) => {
     <div
       className={[
         // Mobile: full-screen overlay when open, hidden when closed
-        effectiveOpen ? "fixed inset-0 z-40 w-full h-full bg-black" : "hidden",
+        effectiveOpen
+          ? "fixed inset-0 z-[9999999999] w-full h-full bg-black"
+          : "hidden",
         // Desktop: layout + width control
         effectiveOpen ? "md:w-[350px]" : "md:w-0",
         "md:static md:block md:h-full md:bg-transparent flex flex-col h-full overflow-hidden transition-[width] duration-200",
