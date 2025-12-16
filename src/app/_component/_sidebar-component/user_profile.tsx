@@ -1,6 +1,7 @@
 "use client";
 
 import ThreeDotIcon from "@/assets/icons/three_dot";
+import { signOut, useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
@@ -8,6 +9,7 @@ const UserProfile = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const { data: session } = useSession();
 
   // Close menu when clicking outside
   useEffect(() => {
@@ -28,15 +30,23 @@ const UserProfile = () => {
     setIsMenuOpen(false);
   };
 
+  const handleSignOut = async () => {
+      await signOut({ callbackUrl: "/login" });
+  };
+
+  if (!session?.user) return null;
+
   return (
     <div className="border-t border-gray-800 p-4">
       <div className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-700 transition-colors duration-200 cursor-pointer">
         <div className="w-8 h-8 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center">
-          <span className="text-white text-sm font-medium">U</span>
+          <span className="text-white text-sm font-medium">
+             {session.user.name ? session.user.name[0].toUpperCase() : "U"}
+          </span>
         </div>
         <div className="flex-1 text-left">
-          <div className="text-sm font-medium text-white">User Name</div>
-          <div className="text-xs text-gray-300">Free Plan</div>
+          <div className="text-sm font-medium text-white max-w-[140px] truncate">{session.user.name || "User"}</div>
+          <div className="text-xs text-gray-300 max-w-[140px] truncate">{session.user.email}</div>
         </div>
         <div className="relative" ref={menuRef}>
           <button
@@ -65,7 +75,17 @@ const UserProfile = () => {
                 </svg>
                 Settings
               </button>
-              {/* You can add more menu items here if needed */}
+              <button
+                onClick={handleSignOut}
+                className="w-full px-4 py-2 text-sm text-red-400 hover:bg-gray-700 flex items-center gap-2 text-left transition-colors"
+              >
+               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                 <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                 <polyline points="16 17 21 12 16 7"></polyline>
+                 <line x1="21" y1="12" x2="9" y2="12"></line>
+               </svg>
+               Sign Out
+              </button>
             </div>
           )}
         </div>
