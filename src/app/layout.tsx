@@ -1,7 +1,9 @@
+import { AuthProvider } from "@/app/_component/auth_provider";
 import ClientOnly from "@/component/client_only";
 import LayoutContent from "@/component/LayoutContent";
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { Toaster } from "sonner";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -31,9 +33,12 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <ClientOnly>
-          <LayoutContent>{children}</LayoutContent>
-        </ClientOnly>
+        <AuthProvider>
+          <ClientOnly>
+            <LayoutContent>{children}</LayoutContent>
+            <Toaster position="top-center" />
+          </ClientOnly>
+        </AuthProvider>
       </body>
     </html>
   );
